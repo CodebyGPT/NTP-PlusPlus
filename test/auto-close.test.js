@@ -13,8 +13,8 @@ test('stays open when its own tab is activated', () => {
   assert.equal(shouldCloseTab({ tabId: 1, windowId: 10 }, selfTab), false);
 });
 
-test('stays open when a tab in another window is activated', () => {
-  assert.equal(shouldCloseTab({ tabId: 2, windowId: 11 }, selfTab), false);
+test('closes when a tab in another window is activated', () => {
+  assert.equal(shouldCloseTab({ tabId: 2, windowId: 11 }, selfTab), true);
 });
 
 test('does nothing without a current tab', () => {

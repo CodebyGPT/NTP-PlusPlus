@@ -92,11 +92,12 @@ test/
 
 ### 离开新标签页时自动关闭
 
-- 新标签页自身通过 `tabs.getCurrent()` 取得自己的 tab id 和 window id。
-- 监听 `tabs.onActivated`：同一窗口中激活了其他标签页时，调用 `tabs.remove()` 关闭自己。
+- 新标签页自身通过 `tabs.getCurrent()` 取得自己的 tab id。
+- 监听 `tabs.onActivated`：任何窗口激活了其他标签页时，调用 `tabs.remove()` 关闭自己。
+- 同时监听 `windows.onFocusChanged`：焦点切换到另一个浏览器窗口时也关闭；焦点变成 `WINDOW_ID_NONE`（切到其他应用）时忽略。
 - 不启动后台 service worker，不保存跨事件状态，不轮询；标签页关闭后监听器随之消失。
-- `tabs.getCurrent()`、`tabs.onActivated`、`tabs.remove()` 都不需要 `tabs` 权限；代码不读取标签页 URL，因此不申请该权限。
-- 只处理同一窗口内的标签切换；切换到另一个窗口不会误关。
+- `tabs.getCurrent()`、`tabs.onActivated`、`tabs.remove()`、`windows.onFocusChanged` 都不需要 `tabs` 权限；代码不读取标签页 URL，因此不申请该权限。
+- 只响应“激活其他标签页/窗口”事件；把浏览器整体切到后台不会关闭。
 
 ## 构建与加载
 
@@ -118,5 +119,5 @@ npm run build
 - [ ] 窄窗口和宽窗口下背景都铺满，无滚动条
 - [ ] Firefox 下切换主题后新标签页颜色正确
 - [ ] Chromium 下深浅色模式跟随系统
-- [ ] 从新标签页切到同窗口其他标签页后，新标签页关闭
+- [ ] 从新标签页切到任意其他标签页后（含其他窗口），新标签页关闭
 - [ ] `npm test` 与 `npm run build` 通过

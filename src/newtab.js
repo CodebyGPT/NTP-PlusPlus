@@ -112,5 +112,24 @@ function closeWhenAnotherTabActivates() {
   });
 }
 
+function closeWhenAnotherWindowGetsFocus() {
+  const windowsApi = extensionApi.windows;
+  if (!windowsApi?.onFocusChanged) {
+    return;
+  }
+
+  windowsApi.onFocusChanged.addListener(async (windowId) => {
+    const tab = await selfTab;
+    if (
+      tab &&
+      windowId !== windowsApi.WINDOW_ID_NONE &&
+      windowId !== tab.windowId
+    ) {
+      closeTab(tab.id);
+    }
+  });
+}
+
 listenForThemeChanges();
 closeWhenAnotherTabActivates();
+closeWhenAnotherWindowGetsFocus();

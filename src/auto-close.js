@@ -1,21 +1,15 @@
 /**
- * A new tab should close when another tab becomes active in its own window.
- * Keeping this pure makes the window/tab rules testable without a browser.
+ * A new tab should close as soon as any other tab becomes active, including a
+ * tab in another window. Keeping this pure makes the rule testable in Node.
  *
- * @param {{ tabId: number, windowId: number }} activeInfo
- * @param {{ id?: number, windowId?: number } | undefined} selfTab
+ * @param {{ tabId: number }} activeInfo
+ * @param {{ id?: number } | undefined} selfTab
  * @returns {boolean}
  */
 export function shouldCloseTab(activeInfo, selfTab) {
-  if (!selfTab) {
+  if (!selfTab || typeof selfTab.id !== 'number') {
     return false;
   }
 
-  if (typeof selfTab.id !== 'number' || typeof selfTab.windowId !== 'number') {
-    return false;
-  }
-
-  return (
-    activeInfo.tabId !== selfTab.id && activeInfo.windowId === selfTab.windowId
-  );
+  return activeInfo.tabId !== selfTab.id;
 }
