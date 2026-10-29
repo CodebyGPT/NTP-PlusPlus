@@ -1,0 +1,28 @@
+:root {
+  color-scheme: light dark;
+
+  /* Design tokens, not per-page values. Firefox overrides --ntp-bg at runtime. */
+  --ntp-bg-light: #f7f7f9;
+  --ntp-bg-dark: #1c1b22;
+  --ntp-bg: var(--ntp-bg-light);
+
+  background-color: var(--ntp-bg);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ntp-bg: var(--ntp-bg-dark);
+  }
+}
+
+html,
+body {
+  margin: 0;
+  min-block-size: 100vh;
+  min-block-size: 100dvh;
+}
+
+body {
+  overflow: hidden;
+  background-color: var(--ntp-bg);
+}

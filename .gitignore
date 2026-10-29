@@ -1,0 +1,22 @@
+# Local, generated MDN mirror
+/Doc/
+
+# Build output
+/dist/
+
+# Dependencies
+/node_modules/
+
+# Packaged extensions
+*.zip
+*.xpi
+
+# Logs and coverage
+*.log
+/coverage/
+
+# OS / editor metadata
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
