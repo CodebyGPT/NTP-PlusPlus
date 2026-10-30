@@ -6,7 +6,7 @@
 - Chrome / Firefox：声明 `tabs` 与 `<all_urls>` 主机权限；当前代码只用 `tabs` 识别并关闭自己的新标签页，不注入内容脚本、不读取网页内容
 - Chrome：深浅色跟随 `prefers-color-scheme`
 - Firefox：额外读取当前主题色（`ntp_background` → `frame`）
-- 纯事件驱动，无轮询；新标签页一变为隐藏就自行关闭，后台再兜底跨窗口/冻结场景
+- 纯事件驱动，无轮询；新标签页一变为隐藏就自行关闭，后台打开的新标签页加载时直接关闭，后台再兜底跨窗口/冻结场景
 - 纯色背景铺满任意窗口尺寸
 
 开发规则和设计说明见 [DEVELOPMENT.md](DEVELOPMENT.md)。

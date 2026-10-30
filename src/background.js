@@ -8,7 +8,9 @@ const NTP_URL = extensionApi.runtime.getURL('newtab.html');
 const NTP_URLS = new Set([
   NTP_URL,
   'chrome://newtab/',
+  'chrome://newtab',
   'edge://newtab/',
+  'edge://newtab',
   'about:newtab',
 ]);
 

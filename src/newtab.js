@@ -131,7 +131,7 @@ function closeWhenAnotherWindowGetsFocus() {
 }
 
 function closeWhenHidden() {
-  document.addEventListener('visibilitychange', () => {
+  const closeIfHidden = () => {
     if (document.visibilityState !== 'hidden') {
       return;
     }
@@ -141,7 +141,11 @@ function closeWhenHidden() {
         closeTab(tab.id);
       }
     });
-  });
+  };
+
+  document.addEventListener('visibilitychange', closeIfHidden);
+  // A tab opened in the background never receives visibilitychange; close it now.
+  closeIfHidden();
 }
 
 listenForThemeChanges();
