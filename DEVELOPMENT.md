@@ -11,8 +11,8 @@
 - 不加载远程字体、脚本、样式、图片或图标，全部资源随扩展打包。
 - 运行时不发起任何网络请求：不使用 `fetch`、`XMLHttpRequest`、`WebSocket`、`EventSource`、`sendBeacon`。
 - 不接入统计、崩溃上报、广告或用户标识。
-- 权限最小化：Chrome 只申请识别并关闭自身新标签页所需的 `tabs`；Firefox 额外申请读取主题的 `theme`。
-- `tabs` 权限仅用于比较标签页 URL 是否等于本扩展的 `newtab.html`；不持久化、不传输浏览记录。
+- 权限：Chrome / Firefox 声明 `tabs` 与 `<all_urls>` 主机权限；Firefox 额外申请读取主题的 `theme`。
+- `<all_urls>` 是项目要求声明的主机权限；当前代码不注入内容脚本、不读取网页内容。`tabs` 权限仅用于比较标签页 URL 是否等于本扩展的 `newtab.html`；不持久化、不传输浏览记录。
 - 新依赖必须离线可用，并在引入前说明为什么标准库/平台 API 不够用。
 
 ### 2. 动态自适应布局

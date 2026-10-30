@@ -75,11 +75,13 @@ async function main() {
     chrome: {
       ...baseManifest,
       permissions: ['tabs'],
+      host_permissions: ['<all_urls>'],
       background: { service_worker: 'background.js' },
     },
     firefox: {
       ...baseManifest,
       permissions: ['theme', 'tabs'],
+      host_permissions: ['<all_urls>'],
       background: { scripts: ['background.js'] },
       browser_specific_settings: {
         gecko: {
