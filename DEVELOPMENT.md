@@ -94,13 +94,11 @@ test/
 
 ### 离开新标签页时自动关闭
 
-- 关闭逻辑由后台 `background.js` 统一负责：监听 `tabs.onActivated`、`windows.onFocusChanged` 和 `tabs.onUpdated`，关闭所有不在前台的新标签页。
-- `tabs.onActivated` 覆盖同窗口和跨窗口的标签页切换；`windows.onFocusChanged` 覆盖浏览器窗口之间的焦点切换；`tabs.onUpdated` 在后台打开的新标签页完成加载时关闭它。
-- 判断是否关闭时读取标签页的 `active` 标志：后台中仍在加载的标签页（例如刚点击的书签）保持 `active === true`，不会被误关；只有已经不在前台的 NTP 才关闭。这样从新标签页导航到目标网站时不会把窗口一起关掉。
-- 判断 NTP 页面时同时检查 `tab.url` / `tab.pendingUrl`，兼容 Chromium 的 `chrome://newtab`（带/不带结尾斜杠）、`chrome://new-tab-page`、Edge 的 `edge://newtab` 和 Firefox 的 `about:newtab`（以及扩展自身 URL）。URL 只在本机比较，不保存、不传输。
-- 页面内的 `tabs.onActivated` / `windows.onFocusChanged` 仅作为快速路径，不依赖页面可见性事件；页面被隐藏或冻结时后台仍然工作。
-- 后台与页面都只响应事件，不使用轮询或定时器。
-- `windows.onFocusChanged` 收到 `WINDOW_ID_NONE`（切到其他应用）时忽略，只处理浏览器窗口之间的切换。
+- 只使用页面自己的事件：`window` 的 `blur` 和 `document` 的 `visibilitychange`。失去焦点或变为隐藏时执行同一段关闭判断。
+- 关闭前用 `tabs.query({ windowId })` 统计当前窗口的标签页数量；数量大于 1 才关闭自己，只剩自己一个时不关闭，避免把窗口一起关掉。
+- 页面加载时如果已经是隐藏状态（后台打开的新标签页），立即执行一次同样的判断。
+- 不读取 `tab.active`，不使用后台 worker，不依赖 URL 匹配，也不使用轮询或定时器。
+- `tabs` 权限只用于统计同窗口标签页数量；`<all_urls>` 主机权限按当前要求保留，但代码不注入内容脚本、不读取网页内容。
 
 ## 构建与加载
 

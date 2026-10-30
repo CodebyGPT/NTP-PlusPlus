@@ -1,10 +1,10 @@
 {
   "name": "just-a-ntp",
-  "version": "0.1.0",
+  "version": "0.1.7",
   "private": true,
   "type": "module",
   "scripts": {
     "build": "node scripts/build.mjs",
-    "test": "node test/auto-close.test.js"
+    "test": "node --check src/newtab.js"
   }
 }

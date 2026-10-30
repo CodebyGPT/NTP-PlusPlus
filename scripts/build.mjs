@@ -6,8 +6,6 @@ const SOURCE_DIR = fileURLToPath(new URL('../src/', import.meta.url));
 const DIST_DIR = fileURLToPath(new URL('../dist/', import.meta.url));
 
 const SHARED_FILES = [
-  'auto-close.js',
-  'background.js',
   'newtab.css',
   'newtab.html',
   'newtab.js',
@@ -76,13 +74,11 @@ async function main() {
       ...baseManifest,
       permissions: ['tabs'],
       host_permissions: ['<all_urls>'],
-      background: { service_worker: 'background.js' },
     },
     firefox: {
       ...baseManifest,
       permissions: ['theme', 'tabs'],
       host_permissions: ['<all_urls>'],
-      background: { scripts: ['background.js'] },
       browser_specific_settings: {
         gecko: {
           id: FIREFOX_ADDON_ID,

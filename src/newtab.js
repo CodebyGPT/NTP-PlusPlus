@@ -1,5 +1,3 @@
-import { shouldCloseTab } from './auto-close.js';
-
 const browserApi = globalThis.browser;
 const extensionApi = browserApi ?? globalThis.chrome;
 
@@ -91,6 +89,16 @@ function getCurrentTab() {
   });
 }
 
+function queryTabs(queryInfo) {
+  if (browserApi?.tabs) {
+    return browserApi.tabs.query(queryInfo);
+  }
+
+  return new Promise((resolve) => {
+    extensionApi.tabs.query(queryInfo, (tabs) => resolve(tabs));
+  });
+}
+
 function closeTab(tabId) {
   if (browserApi?.tabs) {
     browserApi.tabs.remove(tabId).catch(() => {});
@@ -103,33 +111,41 @@ function closeTab(tabId) {
   });
 }
 
-function closeWhenAnotherTabActivates() {
-  extensionApi.tabs.onActivated.addListener(async (activeInfo) => {
-    const tab = await selfTab;
-    if (shouldCloseTab(activeInfo, tab)) {
-      closeTab(tab.id);
-    }
-  });
-}
+let isClosing = false;
 
-function closeWhenAnotherWindowGetsFocus() {
-  const windowsApi = extensionApi.windows;
-  if (!windowsApi?.onFocusChanged) {
+async function closeIfNotOnlyTab() {
+  if (isClosing) {
     return;
   }
 
-  windowsApi.onFocusChanged.addListener(async (windowId) => {
-    const tab = await selfTab;
-    if (
-      tab &&
-      windowId !== windowsApi.WINDOW_ID_NONE &&
-      windowId !== tab.windowId
-    ) {
-      closeTab(tab.id);
+  const tab = await selfTab;
+  if (!tab) {
+    return;
+  }
+
+  const tabs = await queryTabs({ windowId: tab.windowId });
+  // Keep the last tab so losing focus cannot close the whole window.
+  if (tabs.length <= 1) {
+    return;
+  }
+
+  isClosing = true;
+  closeTab(tab.id);
+}
+
+function closeWhenFocusIsLost() {
+  window.addEventListener('blur', closeIfNotOnlyTab);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') {
+      closeIfNotOnlyTab();
     }
   });
+
+  // A new tab opened in the background is already hidden on load.
+  if (document.visibilityState === 'hidden') {
+    closeIfNotOnlyTab();
+  }
 }
 
 listenForThemeChanges();
-closeWhenAnotherTabActivates();
-closeWhenAnotherWindowGetsFocus();
+closeWhenFocusIsLost();
