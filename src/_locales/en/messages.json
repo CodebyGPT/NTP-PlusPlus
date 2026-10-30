@@ -1,0 +1,23 @@
+{
+  "extensionName": {
+    "message": "Just a NTP"
+  },
+  "languageCode": {
+    "message": "en"
+  },
+  "newTabTitle": {
+    "message": "New Tab"
+  },
+  "diagnosticsTitle": {
+    "message": "Just a NTP diagnostics"
+  },
+  "diagnosticsHint": {
+    "message": "Select the log, then right-click to copy"
+  },
+  "copyAll": {
+    "message": "Copy all"
+  },
+  "copied": {
+    "message": "Copied"
+  }
+}

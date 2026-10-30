@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Just a NTP",
-  "version": "0.2.2",
-  "description": "A blank, theme-adaptive new tab page that closes when you switch away.",
+  "name": "__MSG_extensionName__",
+  "version": "0.2.3",
+  "default_locale": "en",
   "chrome_url_overrides": {
     "newtab": "newtab.html"
   }

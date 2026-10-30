@@ -69,16 +69,37 @@ npm run build
 
 构建会校验源码中是否出现轮询/网络 API、manifest 是否可解析、产物文件是否齐全。
 
+### 8. 多语言
+
+- 所有用户可见文案通过 `src/i18n.js` 的 `t()` 或 HTML 的 `data-i18n` 获取，不在 JS/HTML 中硬编码。
+- 文案统一放在 `src/_locales/<locale>/messages.json`；当前支持 `en`、`zh_CN`、`ru`，默认 `en`。
+- 浏览器按界面语言（正常安装时跟随系统语言）自动选择；不支持的界面语言回退到默认英文。
+- 新增语言只需增加对应目录并翻译全部 key；构建会校验各语言 key 完全一致且消息非空。
+- 诊断日志的事件名和内部错误信息属于开发者输出，可以保持英文；`document.documentElement.lang` 跟随实际显示的文案语言。
+
+### 9. 用户可见文案从简
+
+- 只写用户完成操作必需的信息，不写营销语、功能复述、欢迎语或解释性废话。
+- 不主动添加用户没有要求的说明文字。`manifest.json` 的 `description` 这类展示元数据默认不写，除非用户明确要求。
+- 开发注释、诊断日志和开发者文档不受此限；但注释也只解释“为什么”，不复述代码。
+
 ## 当前架构
 
 ```text
 src/
-  manifest.json       公共 manifest 字段
-  newtab.html         空白新标签页
-  newtab.css          纯色背景、深浅色回退、视口自适应
-  newtab.js           主题同步 + 页面内关闭逻辑
+  _locales/
+    en/messages.json     默认语言文案
+    zh_CN/messages.json  简体中文文案
+    ru/messages.json     俄文文案
+  manifest.json          公共 manifest 字段
+  i18n.js                t() 与 data-i18n 应用
+  newtab.html            空白新标签页
+  newtab.css             纯色背景、深浅色回退、视口自适应
+  newtab.js              主题同步 + 页面内关闭逻辑
 scripts/
-  build.mjs           生成 dist/chrome 与 dist/firefox
+  build.mjs              生成 dist/chrome 与 dist/firefox
+test/
+  i18n.test.mjs          i18n 辅助函数检查
 ```
 
 ### 主题色

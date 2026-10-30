@@ -1,3 +1,5 @@
+import { applyTranslations, t } from './i18n.js';
+
 const extensionApi = globalThis.browser ?? globalThis.chrome;
 
 const THEME_BACKGROUND_PROPERTY = '--ntp-bg';
@@ -38,17 +40,17 @@ function createDiagnosticsPanel() {
 
   const header = document.createElement('header');
   const title = document.createElement('strong');
-  title.textContent = 'Just a NTP 诊断日志';
+  title.textContent = t('diagnosticsTitle');
   const hint = document.createElement('span');
-  hint.textContent = '选中日志后右键复制';
+  hint.textContent = t('diagnosticsHint');
 
   const copyButton = document.createElement('button');
   copyButton.type = 'button';
-  copyButton.textContent = '复制全部';
+  copyButton.textContent = t('copyAll');
   copyButton.addEventListener('click', async () => {
     try {
       await navigator.clipboard.writeText(logLines.join('\n'));
-      copyButton.textContent = '已复制';
+      copyButton.textContent = t('copied');
     } catch (error) {
       logEvent('copy:error', { message: error?.message });
     }
@@ -81,6 +83,7 @@ function logPageState(name) {
   });
 }
 
+applyTranslations();
 createDiagnosticsPanel();
 logPageState('page:load');
 

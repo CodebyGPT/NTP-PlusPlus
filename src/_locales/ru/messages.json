@@ -1,0 +1,23 @@
+{
+  "extensionName": {
+    "message": "Just a NTP"
+  },
+  "languageCode": {
+    "message": "ru"
+  },
+  "newTabTitle": {
+    "message": "Новая вкладка"
+  },
+  "diagnosticsTitle": {
+    "message": "Диагностика Just a NTP"
+  },
+  "diagnosticsHint": {
+    "message": "Выделите журнал и скопируйте через контекстное меню"
+  },
+  "copyAll": {
+    "message": "Копировать всё"
+  },
+  "copied": {
+    "message": "Скопировано"
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "extensionName": {
+    "message": "Just a NTP"
+  },
+  "languageCode": {
+    "message": "zh-CN"
+  },
+  "newTabTitle": {
+    "message": "新标签页"
+  },
+  "diagnosticsTitle": {
+    "message": "Just a NTP 诊断日志"
+  },
+  "diagnosticsHint": {
+    "message": "选中日志后右键复制"
+  },
+  "copyAll": {
+    "message": "复制全部"
+  },
+  "copied": {
+    "message": "已复制"
+  }
+}

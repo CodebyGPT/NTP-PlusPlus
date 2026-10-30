@@ -1,4 +1,4 @@
-import { access, cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { access, cp, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -6,10 +6,13 @@ const SOURCE_DIR = fileURLToPath(new URL('../src/', import.meta.url));
 const DIST_DIR = fileURLToPath(new URL('../dist/', import.meta.url));
 
 const SHARED_FILES = [
+  'i18n.js',
   'newtab.css',
   'newtab.html',
   'newtab.js',
 ];
+
+const LOCALES_DIR = '_locales';
 
 const FIREFOX_ADDON_ID = 'just-a-ntp@example.com';
 const FIREFOX_MIN_VERSION = '109.0';
@@ -28,6 +31,49 @@ const FORBIDDEN_PATTERNS = [
 
 async function readSource(file) {
   return readFile(path.join(SOURCE_DIR, file), 'utf8');
+}
+
+async function readLocaleCatalog(locale) {
+  const file = path.join(SOURCE_DIR, LOCALES_DIR, locale, 'messages.json');
+  return JSON.parse(await readFile(file, 'utf8'));
+}
+
+async function validateLocales(manifest) {
+  const defaultLocale = manifest.default_locale;
+  if (!defaultLocale) {
+    throw new Error('manifest.json must define default_locale');
+  }
+
+  const entries = await readdir(path.join(SOURCE_DIR, LOCALES_DIR), {
+    withFileTypes: true,
+  });
+  const locales = entries
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name);
+
+  if (!locales.includes(defaultLocale)) {
+    throw new Error(`Missing default locale directory: ${LOCALES_DIR}/${defaultLocale}`);
+  }
+
+  const defaultCatalog = await readLocaleCatalog(defaultLocale);
+  const defaultKeys = Object.keys(defaultCatalog).sort();
+  if (defaultKeys.length === 0) {
+    throw new Error(`Default locale has no messages: ${defaultLocale}`);
+  }
+
+  for (const locale of locales) {
+    const catalog = await readLocaleCatalog(locale);
+    const keys = Object.keys(catalog).sort();
+    if (keys.join('\n') !== defaultKeys.join('\n')) {
+      throw new Error(`Locale message keys differ from default: ${locale}`);
+    }
+
+    for (const key of keys) {
+      if (typeof catalog[key]?.message !== 'string' || !catalog[key].message.trim()) {
+        throw new Error(`Empty message "${key}" in locale: ${locale}`);
+      }
+    }
+  }
 }
 
 async function validateSource() {
@@ -55,6 +101,12 @@ async function buildTarget(target, manifest) {
     await cp(path.join(SOURCE_DIR, file), path.join(targetDir, file));
   }
 
+  await cp(
+    path.join(SOURCE_DIR, LOCALES_DIR),
+    path.join(targetDir, LOCALES_DIR),
+    { recursive: true },
+  );
+
   await writeFile(
     path.join(targetDir, 'manifest.json'),
     `${JSON.stringify(manifest, null, 2)}\n`,
@@ -63,6 +115,9 @@ async function buildTarget(target, manifest) {
   for (const file of SHARED_FILES) {
     await access(path.join(targetDir, file));
   }
+  await access(
+    path.join(targetDir, LOCALES_DIR, manifest.default_locale, 'messages.json'),
+  );
   await access(path.join(targetDir, 'manifest.json'));
 }
 
@@ -70,6 +125,7 @@ async function main() {
   await validateSource();
 
   const baseManifest = JSON.parse(await readSource('manifest.json'));
+  await validateLocales(baseManifest);
   const targets = {
     chrome: {
       ...baseManifest,
