@@ -3,8 +3,8 @@
 一个空白、纯色、跟随浏览器主题的新标签页。切到任意其他标签页（包括其他窗口）后，新标签页自动关闭。
 
 - 无网络请求、无遥测、无远程资源
-- Chrome：不申请权限，深浅色跟随 `prefers-color-scheme`
-- Firefox：读取当前主题色（`ntp_background` → `frame`）
+- Chrome：`tabs` 权限仅用于识别并关闭自己的新标签页；深浅色跟随 `prefers-color-scheme`
+- Firefox：额外读取当前主题色（`ntp_background` → `frame`）
 - 纯事件驱动，无轮询
 - 纯色背景铺满任意窗口尺寸
 
@@ -27,4 +27,4 @@ npm run build
 
 **Firefox**：打开 `about:debugging#/runtime/this-firefox`，点击“临时载入附加组件”，选择 `dist/firefox/manifest.json`。
 
-> Firefox 使用 `theme` 权限读取当前主题色；Chrome 构建不声明任何权限。
+> Chrome 使用 `tabs` 权限识别自己的新标签页并关闭；Firefox 额外使用 `theme` 权限读取当前主题色。两者都不发起网络请求，也不保存浏览记录。

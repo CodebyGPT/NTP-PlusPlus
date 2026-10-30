@@ -7,6 +7,7 @@ const DIST_DIR = fileURLToPath(new URL('../dist/', import.meta.url));
 
 const SHARED_FILES = [
   'auto-close.js',
+  'background.js',
   'newtab.css',
   'newtab.html',
   'newtab.js',
@@ -71,10 +72,15 @@ async function main() {
 
   const baseManifest = JSON.parse(await readSource('manifest.json'));
   const targets = {
-    chrome: baseManifest,
+    chrome: {
+      ...baseManifest,
+      permissions: ['tabs'],
+      background: { service_worker: 'background.js' },
+    },
     firefox: {
       ...baseManifest,
-      permissions: ['theme'],
+      permissions: ['theme', 'tabs'],
+      background: { scripts: ['background.js'] },
       browser_specific_settings: {
         gecko: {
           id: FIREFOX_ADDON_ID,

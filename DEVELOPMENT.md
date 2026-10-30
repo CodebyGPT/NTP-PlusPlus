@@ -11,7 +11,8 @@
 - 不加载远程字体、脚本、样式、图片或图标，全部资源随扩展打包。
 - 运行时不发起任何网络请求：不使用 `fetch`、`XMLHttpRequest`、`WebSocket`、`EventSource`、`sendBeacon`。
 - 不接入统计、崩溃上报、广告或用户标识。
-- 权限最小化：Chrome 构建不申请任何权限；Firefox 构建只申请读取主题所需的 `theme`。
+- 权限最小化：Chrome 只申请识别并关闭自身新标签页所需的 `tabs`；Firefox 额外申请读取主题的 `theme`。
+- `tabs` 权限仅用于比较标签页 URL 是否等于本扩展的 `newtab.html`；不持久化、不传输浏览记录。
 - 新依赖必须离线可用，并在引入前说明为什么标准库/平台 API 不够用。
 
 ### 2. 动态自适应布局
@@ -31,7 +32,7 @@
 ### 4. 纯事件驱动，不轮询
 
 - 禁止用 `setInterval`、`setTimeout` 或递归定时器轮询/调度状态。
-- 使用浏览器事件：`tabs.onActivated`、`theme.onUpdated`、`matchMedia` 的 `change`、页面生命周期事件。
+- 使用浏览器事件：`tabs.onActivated`、`windows.onFocusChanged`、`theme.onUpdated`、`matchMedia` 的 `change`、页面生命周期事件。
 - 构建检查会拒绝 `setInterval` / `setTimeout`。如果未来确实需要，先修改守则和检查并说明原因，而不是绕过规则。
 - 事件监听器必须在对应上下文销毁时移除（当前页面级监听器随标签页关闭自然结束）。
 
@@ -70,9 +71,10 @@ npm run build
 ```text
 src/
   manifest.json       公共 manifest 字段
+  background.js       后台事件：关闭切走后仍存活的新标签页
   newtab.html         空白新标签页
   newtab.css          纯色背景、深浅色回退、视口自适应
-  newtab.js           主题同步 + 离开时关闭
+  newtab.js           主题同步 + 页面内快速关闭路径
   auto-close.js       可测试的“是否应关闭”判断
 scripts/
   build.mjs           生成 dist/chrome 与 dist/firefox
@@ -92,12 +94,11 @@ test/
 
 ### 离开新标签页时自动关闭
 
-- 新标签页自身通过 `tabs.getCurrent()` 取得自己的 tab id。
-- 监听 `tabs.onActivated`：任何窗口激活了其他标签页时，调用 `tabs.remove()` 关闭自己。
-- 同时监听 `windows.onFocusChanged`：焦点切换到另一个浏览器窗口时也关闭；焦点变成 `WINDOW_ID_NONE`（切到其他应用）时忽略。
-- 不启动后台 service worker，不保存跨事件状态，不轮询；标签页关闭后监听器随之消失。
-- `tabs.getCurrent()`、`tabs.onActivated`、`tabs.remove()`、`windows.onFocusChanged` 都不需要 `tabs` 权限；代码不读取标签页 URL，因此不申请该权限。
-- 只响应“激活其他标签页/窗口”事件；把浏览器整体切到后台不会关闭。
+- 后台 `background.js` 是可靠路径：监听 `tabs.onActivated` 和 `windows.onFocusChanged`，查询标签页并关闭除当前激活页以外的所有 NTP 页面。
+- 判断 NTP 页面时同时检查 `tab.url` / `tab.pendingUrl`：Chromium 会把被覆盖的新标签页报告为 `chrome://newtab/`（Edge 为 `edge://newtab/`），而不是扩展 URL，所以两者都要匹配。URL 只在本机比较，不保存、不传输。
+- 新标签页自身保留同样的 `tabs.onActivated` / `windows.onFocusChanged` 快速路径；即使页面被隐藏或冻结，后台仍会兜底关闭。
+- 后台与页面都只响应事件，不使用轮询或定时器。
+- `windows.onFocusChanged` 收到 `WINDOW_ID_NONE`（切到其他应用）时忽略，只处理浏览器窗口之间的切换。
 
 ## 构建与加载
 
