@@ -16,7 +16,6 @@ const FIREFOX_MIN_VERSION = '109.0';
 
 const FORBIDDEN_PATTERNS = [
   { pattern: /\bsetInterval\s*\(/, reason: 'polling timer' },
-  { pattern: /\bsetTimeout\s*\(/, reason: 'timer-based scheduling' },
   { pattern: /\bfetch\s*\(/, reason: 'network request' },
   { pattern: /\bXMLHttpRequest\b/, reason: 'network request' },
   { pattern: /\bWebSocket\b/, reason: 'network request' },

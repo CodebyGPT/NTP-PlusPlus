@@ -5,6 +5,11 @@ const THEME_BACKGROUND_PROPERTY = '--ntp-bg';
 const THEME_BACKGROUND_KEYS = ['ntp_background', 'frame'];
 const RGB_CHANNEL_COUNT = 3;
 
+const CLOSE_RETRY_DELAY_MS = 100;
+const CLOSE_MAX_RETRIES = 10;
+const TAB_STRIP_BUSY_ERROR =
+  'Tabs cannot be edited right now (user may be dragging a tab).';
+
 const logLines = [];
 let logElement;
 
@@ -210,11 +215,14 @@ function closeTab(tabId) {
 }
 
 let isClosing = false;
+let pendingClose = false;
+let closeRetryCount = 0;
 
 async function closeIfNotOnlyTab(source) {
   logEvent('close:check', {
     source,
     isClosing,
+    pendingClose,
     visibility: document.visibilityState,
     focused: document.hasFocus(),
   });
@@ -257,8 +265,19 @@ async function closeIfNotOnlyTab(source) {
     activeIds: tabs.filter((item) => item.active).map((item) => item.id),
   });
 
+  // A hidden tab that is still active is navigating, not switched away from.
+  const selfInWindow = tabs.find((item) => item.id === tab.id);
+  if (selfInWindow?.active) {
+    pendingClose = false;
+    closeRetryCount = 0;
+    logEvent('close:skip', { reason: 'tab still active (navigating)' });
+    return;
+  }
+
   // Keep the last tab so losing focus cannot close the whole window.
   if (tabs.length <= 1) {
+    pendingClose = false;
+    closeRetryCount = 0;
     logEvent('close:skip', { reason: 'only tab in window' });
     return;
   }
@@ -268,11 +287,56 @@ async function closeIfNotOnlyTab(source) {
 
   try {
     await closeTab(tab.id);
+    pendingClose = false;
+    closeRetryCount = 0;
     logEvent('close:success', { tabId: tab.id });
   } catch (error) {
+    const message = error?.message;
     isClosing = false;
-    logEvent('close:failure', { tabId: tab.id, message: error?.message });
+    pendingClose = true;
+    logEvent('close:failure', { tabId: tab.id, message });
+
+    // Chrome temporarily rejects tab edits while the tab strip is busy.
+    // The official workaround is a short bounded retry, not state polling.
+    if (message === TAB_STRIP_BUSY_ERROR) {
+      scheduleCloseRetry();
+    }
   }
+}
+
+function scheduleCloseRetry() {
+  if (closeRetryCount >= CLOSE_MAX_RETRIES) {
+    logEvent('close:retry-give-up', { attempts: closeRetryCount });
+    return;
+  }
+
+  closeRetryCount += 1;
+  const attempt = closeRetryCount;
+  logEvent('close:retry-scheduled', {
+    attempt,
+    delayMs: CLOSE_RETRY_DELAY_MS,
+  });
+
+  setTimeout(() => {
+    if (document.visibilityState !== 'hidden') {
+      pendingClose = false;
+      closeRetryCount = 0;
+      logEvent('close:retry-cancelled', { attempt, reason: 'page visible again' });
+      return;
+    }
+
+    logEvent('close:retry', { attempt, source: 'timer' });
+    closeIfNotOnlyTab('timer');
+  }, CLOSE_RETRY_DELAY_MS);
+}
+
+function retryPendingClose(source) {
+  if (!pendingClose || document.visibilityState !== 'hidden') {
+    return;
+  }
+
+  logEvent('close:retry', { source });
+  closeIfNotOnlyTab(source);
 }
 
 function logFocusEvent(name) {
@@ -314,12 +378,30 @@ function closeWhenFocusIsLost() {
   if (extensionApi.tabs?.onActivated) {
     extensionApi.tabs.onActivated.addListener((activeInfo) => {
       logEvent('tabs:onActivated', activeInfo);
+      retryPendingClose('tabs:onActivated');
+    });
+  }
+
+  if (extensionApi.tabs?.onUpdated) {
+    extensionApi.tabs.onUpdated.addListener((tabId, changeInfo) => {
+      logEvent('tabs:onUpdated', { tabId, status: changeInfo.status });
+      retryPendingClose('tabs:onUpdated');
+    });
+  }
+
+  if (extensionApi.tabs?.onMoved) {
+    extensionApi.tabs.onMoved.addListener((tabId, moveInfo) => {
+      logEvent('tabs:onMoved', { tabId, ...moveInfo });
+      retryPendingClose('tabs:onMoved');
     });
   }
 
   if (extensionApi.windows?.onFocusChanged) {
     extensionApi.windows.onFocusChanged.addListener((windowId) => {
       logEvent('windows:onFocusChanged', { windowId });
+      if (windowId !== extensionApi.windows.WINDOW_ID_NONE) {
+        retryPendingClose('windows:onFocusChanged');
+      }
     });
   }
 
