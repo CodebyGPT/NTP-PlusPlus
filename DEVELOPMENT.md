@@ -31,10 +31,10 @@
 
 ### 4. 纯事件驱动，不轮询
 
-- 禁止用 `setInterval` 或递归定时器轮询/调度状态。
-- 使用浏览器事件：`tabs.onActivated`、`windows.onFocusChanged`、`theme.onUpdated`、`matchMedia` 的 `change`、页面生命周期事件。
-- 唯一允许的 `setTimeout`：Chrome 在标签栏拖动/切换瞬间会以 `Tabs cannot be edited right now` 拒绝 `tabs.remove`；按官方文档对该明确错误做有限次重试（最多 10 次、间隔 100ms），不是周期性状态轮询。
-- 构建检查会拒绝 `setInterval`。如果未来需要新的定时逻辑，先修改守则和检查并说明原因，而不是绕过规则。
+- 禁止 `setInterval`、`setTimeout`、递归定时器，以及任何形式的轮询或定时循环。
+- 使用浏览器事件：`tabs.onActivated`、`tabs.onHighlighted`、`tabs.onUpdated`、`windows.onFocusChanged`、`theme.onUpdated`、`matchMedia` 的 `change`、页面生命周期事件。
+- 需要等待浏览器状态变化时，等待下一个相关事件，而不是设置延迟；不使用硬编码的毫秒数。
+- 构建检查同时拒绝 `setInterval` 和 `setTimeout`。如果未来确实需要定时逻辑，必须先修改守则和检查并说明原因，而不是绕过规则。
 - 事件监听器必须在对应上下文销毁时移除（当前页面级监听器随标签页关闭自然结束）。
 
 ### 5. 以本地 MDN 文档为准
@@ -98,8 +98,8 @@ test/
 - 只使用页面自己的事件：`window` 的 `blur` 和 `document` 的 `visibilitychange`。失去焦点或变为隐藏时执行同一段关闭判断。
 - 关闭前用 `tabs.query({ windowId })` 统计当前窗口的标签页数量；数量大于 1 才关闭自己，只剩自己一个时不关闭，避免把窗口一起关掉。
 - 页面加载时如果已经是隐藏状态（后台打开的新标签页），立即执行一次同样的判断。
-- 不读取 `tab.active`，不使用后台 worker，不依赖 URL 匹配，也不使用轮询。
-- 标签栏忙时（Chrome 明确返回 `Tabs cannot be edited right now`）按官方建议做有限次 `setTimeout` 重试；页面重新变为可见时取消重试。
+- 读取同窗口标签页的 `active` 状态，用于区分“切换标签页”和“当前标签页正在导航”；不使用后台 worker，不依赖 URL 匹配，也不使用轮询。
+- 标签栏忙时（Chrome 明确返回 `Tabs cannot be edited right now`）只记录待关闭状态，等待后续 `tabs`/`windows` 事件再试；不启动定时器、不硬编码重试间隔。
 - `tabs` 权限只用于统计同窗口标签页数量；`<all_urls>` 主机权限按当前要求保留，但代码不注入内容脚本、不读取网页内容。
 
 ## 构建与加载

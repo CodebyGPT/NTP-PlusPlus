@@ -5,8 +5,6 @@ const THEME_BACKGROUND_PROPERTY = '--ntp-bg';
 const THEME_BACKGROUND_KEYS = ['ntp_background', 'frame'];
 const RGB_CHANNEL_COUNT = 3;
 
-const CLOSE_RETRY_DELAY_MS = 100;
-const CLOSE_MAX_RETRIES = 10;
 const TAB_STRIP_BUSY_ERROR =
   'Tabs cannot be edited right now (user may be dragging a tab).';
 
@@ -216,7 +214,6 @@ function closeTab(tabId) {
 
 let isClosing = false;
 let pendingClose = false;
-let closeRetryCount = 0;
 
 async function closeIfNotOnlyTab(source) {
   logEvent('close:check', {
@@ -269,7 +266,6 @@ async function closeIfNotOnlyTab(source) {
   const selfInWindow = tabs.find((item) => item.id === tab.id);
   if (selfInWindow?.active) {
     pendingClose = false;
-    closeRetryCount = 0;
     logEvent('close:skip', { reason: 'tab still active (navigating)' });
     return;
   }
@@ -277,7 +273,6 @@ async function closeIfNotOnlyTab(source) {
   // Keep the last tab so losing focus cannot close the whole window.
   if (tabs.length <= 1) {
     pendingClose = false;
-    closeRetryCount = 0;
     logEvent('close:skip', { reason: 'only tab in window' });
     return;
   }
@@ -288,7 +283,6 @@ async function closeIfNotOnlyTab(source) {
   try {
     await closeTab(tab.id);
     pendingClose = false;
-    closeRetryCount = 0;
     logEvent('close:success', { tabId: tab.id });
   } catch (error) {
     const message = error?.message;
@@ -297,37 +291,11 @@ async function closeIfNotOnlyTab(source) {
     logEvent('close:failure', { tabId: tab.id, message });
 
     // Chrome temporarily rejects tab edits while the tab strip is busy.
-    // The official workaround is a short bounded retry, not state polling.
+    // Retry only on a later browser event; never schedule a timer.
     if (message === TAB_STRIP_BUSY_ERROR) {
-      scheduleCloseRetry();
+      logEvent('close:waiting-for-tab-event');
     }
   }
-}
-
-function scheduleCloseRetry() {
-  if (closeRetryCount >= CLOSE_MAX_RETRIES) {
-    logEvent('close:retry-give-up', { attempts: closeRetryCount });
-    return;
-  }
-
-  closeRetryCount += 1;
-  const attempt = closeRetryCount;
-  logEvent('close:retry-scheduled', {
-    attempt,
-    delayMs: CLOSE_RETRY_DELAY_MS,
-  });
-
-  setTimeout(() => {
-    if (document.visibilityState !== 'hidden') {
-      pendingClose = false;
-      closeRetryCount = 0;
-      logEvent('close:retry-cancelled', { attempt, reason: 'page visible again' });
-      return;
-    }
-
-    logEvent('close:retry', { attempt, source: 'timer' });
-    closeIfNotOnlyTab('timer');
-  }, CLOSE_RETRY_DELAY_MS);
 }
 
 function retryPendingClose(source) {
@@ -379,6 +347,13 @@ function closeWhenFocusIsLost() {
     extensionApi.tabs.onActivated.addListener((activeInfo) => {
       logEvent('tabs:onActivated', activeInfo);
       retryPendingClose('tabs:onActivated');
+    });
+  }
+
+  if (extensionApi.tabs?.onHighlighted) {
+    extensionApi.tabs.onHighlighted.addListener((highlightInfo) => {
+      logEvent('tabs:onHighlighted', highlightInfo);
+      retryPendingClose('tabs:onHighlighted');
     });
   }
 
