@@ -1,5 +1,4 @@
-const browserApi = globalThis.browser;
-const extensionApi = browserApi ?? globalThis.chrome;
+const extensionApi = globalThis.browser ?? globalThis.chrome;
 
 const THEME_BACKGROUND_PROPERTY = '--ntp-bg';
 const THEME_BACKGROUND_KEYS = ['ntp_background', 'frame'];
@@ -11,7 +10,7 @@ const TAB_STRIP_BUSY_ERROR =
 const logLines = [];
 let logElement;
 
-const selfTab = getCurrentTab().catch(() => undefined);
+const selfTab = extensionApi.tabs.getCurrent().catch(() => undefined);
 
 function stringifyDetails(details) {
   if (details === undefined) {
@@ -127,7 +126,7 @@ function applyTheme(theme) {
 }
 
 async function refreshTheme() {
-  const themeApi = browserApi?.theme;
+  const themeApi = extensionApi.theme;
   if (!themeApi?.getCurrent) {
     return;
   }
@@ -146,7 +145,7 @@ async function refreshTheme() {
 }
 
 function listenForThemeChanges() {
-  const themeApi = browserApi?.theme;
+  const themeApi = extensionApi.theme;
   if (!themeApi?.getCurrent) {
     return;
   }
@@ -158,57 +157,6 @@ function listenForThemeChanges() {
       return;
     }
     applyTheme(theme);
-  });
-}
-
-function getCurrentTab() {
-  if (browserApi?.tabs) {
-    return browserApi.tabs.getCurrent();
-  }
-
-  return new Promise((resolve, reject) => {
-    extensionApi.tabs.getCurrent((tab) => {
-      const error = extensionApi.runtime.lastError;
-      if (error) {
-        reject(new Error(error.message));
-      } else {
-        resolve(tab);
-      }
-    });
-  });
-}
-
-function queryTabs(queryInfo) {
-  if (browserApi?.tabs) {
-    return browserApi.tabs.query(queryInfo);
-  }
-
-  return new Promise((resolve, reject) => {
-    extensionApi.tabs.query(queryInfo, (tabs) => {
-      const error = extensionApi.runtime.lastError;
-      if (error) {
-        reject(new Error(error.message));
-      } else {
-        resolve(tabs);
-      }
-    });
-  });
-}
-
-function closeTab(tabId) {
-  if (browserApi?.tabs) {
-    return browserApi.tabs.remove(tabId);
-  }
-
-  return new Promise((resolve, reject) => {
-    extensionApi.tabs.remove(tabId, () => {
-      const error = extensionApi.runtime.lastError;
-      if (error) {
-        reject(new Error(error.message));
-      } else {
-        resolve();
-      }
-    });
   });
 }
 
@@ -250,7 +198,7 @@ async function closeIfNotOnlyTab(source) {
 
   let tabs;
   try {
-    tabs = await queryTabs({ windowId: tab.windowId });
+    tabs = await extensionApi.tabs.query({ windowId: tab.windowId });
   } catch (error) {
     logEvent('close:error', { stage: 'queryTabs', message: error?.message });
     return;
@@ -281,7 +229,7 @@ async function closeIfNotOnlyTab(source) {
   logEvent('close:attempt', { tabId: tab.id });
 
   try {
-    await closeTab(tab.id);
+    await extensionApi.tabs.remove(tab.id);
     pendingClose = false;
     logEvent('close:success', { tabId: tab.id });
   } catch (error) {

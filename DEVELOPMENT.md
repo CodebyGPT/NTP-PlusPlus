@@ -50,8 +50,10 @@
 
 ### 6. 跨浏览器但不做无谓抽象
 
-- 优先使用 `browser.*`（Firefox Promise API），在 Chromium 中回退到 `chrome.*` 回调。
-- 通过特性检测判断 API 是否存在，例如 Chromium 没有 `browser.theme`，就直接使用 CSS 深浅色回退。
+- 仅支持 Chrome 121+ 与 Firefox 109+：两者异步扩展 API 都返回 Promise，统一用 Promise，不再为旧 Chromium 维护回调分支。
+- Chrome 清单声明 `minimum_chrome_version: "121"`，低于该版本的 Chromium 内核浏览器拒绝安装；Firefox 清单声明 `strict_min_version: "109.0"`。
+- 运行时统一取 `globalThis.browser ?? globalThis.chrome`，两条路径都按 Promise 调用；不检测回调风格。
+- 通过特性检测判断可选 API 是否存在，例如 Chromium 没有 `theme` API，就直接使用 CSS 深浅色回退。
 - 不引入 polyfill 库、构建框架或状态管理；两种 manifest 由构建脚本生成即可。
 
 ### 7. 代码与验证
@@ -72,15 +74,11 @@ npm run build
 ```text
 src/
   manifest.json       公共 manifest 字段
-  background.js       后台事件：关闭切走后仍存活的新标签页
   newtab.html         空白新标签页
   newtab.css          纯色背景、深浅色回退、视口自适应
-  newtab.js           主题同步 + 页面内快速关闭路径
-  auto-close.js       可测试的“是否应关闭”判断
+  newtab.js           主题同步 + 页面内关闭逻辑
 scripts/
   build.mjs           生成 dist/chrome 与 dist/firefox
-test/
-  auto-close.test.js  自动关闭判断的测试
 ```
 
 ### 主题色

@@ -3,6 +3,7 @@
 一个空白、纯色、跟随浏览器主题的新标签页。切到任意其他标签页（包括其他窗口）后，新标签页自动关闭。
 
 - 无网络请求、无遥测、无远程资源
+- 支持 Chrome 121+ / Firefox 109+，统一使用 Promise API；低于 Chrome 121 的 Chromium 内核浏览器会被清单拒绝安装
 - Chrome / Firefox：声明 `tabs` 与 `<all_urls>` 主机权限；当前代码只用 `tabs` 统计同窗口标签页数量并关闭自己，不注入内容脚本、不读取网页内容
 - Chrome：深浅色跟随 `prefers-color-scheme`
 - Firefox：额外读取当前主题色（`ntp_background` → `frame`）
@@ -28,7 +29,7 @@ npm run build
 
 ## 加载
 
-**Chrome / Edge**：打开扩展管理页，启用开发者模式，选择“加载已解压的扩展程序”，指向 `dist/chrome/`。
+**Chrome / Edge 121+**：打开扩展管理页，启用开发者模式，选择“加载已解压的扩展程序”，指向 `dist/chrome/`。低于所需版本的 Chromium 内核浏览器会拒绝安装。
 
 **Firefox**：打开 `about:debugging#/runtime/this-firefox`，点击“临时载入附加组件”，选择 `dist/firefox/manifest.json`。
 

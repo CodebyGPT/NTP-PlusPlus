@@ -13,6 +13,7 @@ const SHARED_FILES = [
 
 const FIREFOX_ADDON_ID = 'just-a-ntp@example.com';
 const FIREFOX_MIN_VERSION = '109.0';
+const CHROME_MIN_VERSION = '121';
 
 const FORBIDDEN_PATTERNS = [
   { pattern: /\bsetInterval\s*\(/, reason: 'polling timer' },
@@ -72,6 +73,7 @@ async function main() {
   const targets = {
     chrome: {
       ...baseManifest,
+      minimum_chrome_version: CHROME_MIN_VERSION,
       permissions: ['tabs'],
       host_permissions: ['<all_urls>'],
     },
