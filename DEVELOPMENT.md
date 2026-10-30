@@ -94,9 +94,10 @@ test/
 
 ### 离开新标签页时自动关闭
 
-- 后台 `background.js` 是可靠路径：监听 `tabs.onActivated` 和 `windows.onFocusChanged`，查询标签页并关闭除当前激活页以外的所有 NTP 页面。
+- 后台 `background.js` 是跨窗口和页面被冻结时的兜底路径：监听 `tabs.onActivated` 和 `windows.onFocusChanged`，查询标签页并关闭除当前激活页以外的所有 NTP 页面。
+- 页面内的 `visibilitychange` 是同窗口切换的主路径：新标签页一旦变为隐藏就调用 `tabs.remove()` 关闭自己。它不依赖后台 service worker 是否被唤醒，也不需要读取其他标签页的 URL。
 - 判断 NTP 页面时同时检查 `tab.url` / `tab.pendingUrl`：Chromium 会把被覆盖的新标签页报告为 `chrome://newtab/`（Edge 为 `edge://newtab/`），而不是扩展 URL，所以两者都要匹配。URL 只在本机比较，不保存、不传输。
-- 新标签页自身保留同样的 `tabs.onActivated` / `windows.onFocusChanged` 快速路径；即使页面被隐藏或冻结，后台仍会兜底关闭。
+- 新标签页自身保留 `tabs.onActivated` / `windows.onFocusChanged` 快速路径；即使页面被隐藏，后台仍会兜底关闭。
 - 后台与页面都只响应事件，不使用轮询或定时器。
 - `windows.onFocusChanged` 收到 `WINDOW_ID_NONE`（切到其他应用）时忽略，只处理浏览器窗口之间的切换。
 

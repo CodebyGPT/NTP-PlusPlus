@@ -130,6 +130,21 @@ function closeWhenAnotherWindowGetsFocus() {
   });
 }
 
+function closeWhenHidden() {
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'hidden') {
+      return;
+    }
+
+    selfTab.then((tab) => {
+      if (tab) {
+        closeTab(tab.id);
+      }
+    });
+  });
+}
+
 listenForThemeChanges();
 closeWhenAnotherTabActivates();
 closeWhenAnotherWindowGetsFocus();
+closeWhenHidden();

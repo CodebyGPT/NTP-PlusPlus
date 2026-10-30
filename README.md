@@ -5,7 +5,7 @@
 - 无网络请求、无遥测、无远程资源
 - Chrome：`tabs` 权限仅用于识别并关闭自己的新标签页；深浅色跟随 `prefers-color-scheme`
 - Firefox：额外读取当前主题色（`ntp_background` → `frame`）
-- 纯事件驱动，无轮询
+- 纯事件驱动，无轮询；新标签页一变为隐藏就自行关闭，后台再兜底跨窗口/冻结场景
 - 纯色背景铺满任意窗口尺寸
 
 开发规则和设计说明见 [DEVELOPMENT.md](DEVELOPMENT.md)。
