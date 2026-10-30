@@ -32,7 +32,7 @@
 ### 4. 纯事件驱动，不轮询
 
 - 禁止 `setInterval`、`setTimeout`、递归定时器，以及任何形式的轮询或定时循环。
-- 使用浏览器事件：`tabs.onActivated`、`tabs.onHighlighted`、`tabs.onUpdated`、`windows.onFocusChanged`、`theme.onUpdated`、`matchMedia` 的 `change`、页面生命周期事件。
+- 使用浏览器事件：`visibilitychange`、`window.blur`、`theme.onUpdated`、`matchMedia` 的 `change`、页面生命周期事件。
 - 需要等待浏览器状态变化时，等待下一个相关事件，而不是设置延迟；不使用硬编码的毫秒数。
 - 构建检查同时拒绝 `setInterval` 和 `setTimeout`。如果未来确实需要定时逻辑，必须先修改守则和检查并说明原因，而不是绕过规则。
 - 事件监听器必须在对应上下文销毁时移除（当前页面级监听器随标签页关闭自然结束）。
@@ -97,7 +97,8 @@ scripts/
 - 关闭前用 `tabs.query({ windowId })` 统计当前窗口的标签页数量；数量大于 1 才关闭自己，只剩自己一个时不关闭，避免把窗口一起关掉。
 - 页面加载时如果已经是隐藏状态（后台打开的新标签页），立即执行一次同样的判断。
 - 读取同窗口标签页的 `active` 状态，用于区分“切换标签页”和“当前标签页正在导航”；不使用后台 worker，不依赖 URL 匹配，也不使用轮询。
-- 标签栏忙时（Chrome 明确返回 `Tabs cannot be edited right now`）只记录待关闭状态，等待后续 `tabs`/`windows` 事件再试；不启动定时器、不硬编码重试间隔。
+- 关闭动作由页面自己调用 `window.close()`，不再调用 `tabs.remove`；因此不会触发 Chrome 标签栏的 `Tabs cannot be edited right now` 忙锁，也不需要重试或定时器。
+- 新标签页保持未导航（`history.length === 1`），满足浏览器允许脚本关闭该标签页的前提。
 - `tabs` 权限只用于统计同窗口标签页数量；`<all_urls>` 主机权限按当前要求保留，但代码不注入内容脚本、不读取网页内容。
 
 ## 构建与加载

@@ -4,9 +4,6 @@ const THEME_BACKGROUND_PROPERTY = '--ntp-bg';
 const THEME_BACKGROUND_KEYS = ['ntp_background', 'frame'];
 const RGB_CHANNEL_COUNT = 3;
 
-const TAB_STRIP_BUSY_ERROR =
-  'Tabs cannot be edited right now (user may be dragging a tab).';
-
 const logLines = [];
 let logElement;
 
@@ -161,13 +158,11 @@ function listenForThemeChanges() {
 }
 
 let isClosing = false;
-let pendingClose = false;
 
 async function closeIfNotOnlyTab(source) {
   logEvent('close:check', {
     source,
     isClosing,
-    pendingClose,
     visibility: document.visibilityState,
     focused: document.hasFocus(),
   });
@@ -213,46 +208,19 @@ async function closeIfNotOnlyTab(source) {
   // A hidden tab that is still active is navigating, not switched away from.
   const selfInWindow = tabs.find((item) => item.id === tab.id);
   if (selfInWindow?.active) {
-    pendingClose = false;
     logEvent('close:skip', { reason: 'tab still active (navigating)' });
     return;
   }
 
   // Keep the last tab so losing focus cannot close the whole window.
   if (tabs.length <= 1) {
-    pendingClose = false;
     logEvent('close:skip', { reason: 'only tab in window' });
     return;
   }
 
   isClosing = true;
   logEvent('close:attempt', { tabId: tab.id });
-
-  try {
-    await extensionApi.tabs.remove(tab.id);
-    pendingClose = false;
-    logEvent('close:success', { tabId: tab.id });
-  } catch (error) {
-    const message = error?.message;
-    isClosing = false;
-    pendingClose = true;
-    logEvent('close:failure', { tabId: tab.id, message });
-
-    // Chrome temporarily rejects tab edits while the tab strip is busy.
-    // Retry only on a later browser event; never schedule a timer.
-    if (message === TAB_STRIP_BUSY_ERROR) {
-      logEvent('close:waiting-for-tab-event');
-    }
-  }
-}
-
-function retryPendingClose(source) {
-  if (!pendingClose || document.visibilityState !== 'hidden') {
-    return;
-  }
-
-  logEvent('close:retry', { source });
-  closeIfNotOnlyTab(source);
+  window.close();
 }
 
 function logFocusEvent(name) {
@@ -276,6 +244,8 @@ function closeWhenFocusIsLost() {
     logFocusEvent('document:visibilitychange');
     if (document.visibilityState === 'hidden') {
       closeIfNotOnlyTab('document:visibilitychange');
+    } else {
+      isClosing = false;
     }
   });
 
@@ -290,43 +260,6 @@ function closeWhenFocusIsLost() {
   window.addEventListener('beforeunload', () => {
     logEvent('page:beforeunload');
   });
-
-  if (extensionApi.tabs?.onActivated) {
-    extensionApi.tabs.onActivated.addListener((activeInfo) => {
-      logEvent('tabs:onActivated', activeInfo);
-      retryPendingClose('tabs:onActivated');
-    });
-  }
-
-  if (extensionApi.tabs?.onHighlighted) {
-    extensionApi.tabs.onHighlighted.addListener((highlightInfo) => {
-      logEvent('tabs:onHighlighted', highlightInfo);
-      retryPendingClose('tabs:onHighlighted');
-    });
-  }
-
-  if (extensionApi.tabs?.onUpdated) {
-    extensionApi.tabs.onUpdated.addListener((tabId, changeInfo) => {
-      logEvent('tabs:onUpdated', { tabId, status: changeInfo.status });
-      retryPendingClose('tabs:onUpdated');
-    });
-  }
-
-  if (extensionApi.tabs?.onMoved) {
-    extensionApi.tabs.onMoved.addListener((tabId, moveInfo) => {
-      logEvent('tabs:onMoved', { tabId, ...moveInfo });
-      retryPendingClose('tabs:onMoved');
-    });
-  }
-
-  if (extensionApi.windows?.onFocusChanged) {
-    extensionApi.windows.onFocusChanged.addListener((windowId) => {
-      logEvent('windows:onFocusChanged', { windowId });
-      if (windowId !== extensionApi.windows.WINDOW_ID_NONE) {
-        retryPendingClose('windows:onFocusChanged');
-      }
-    });
-  }
 
   // A new tab opened in the background is already hidden on load.
   if (document.visibilityState === 'hidden') {
