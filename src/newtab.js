@@ -1,4 +1,4 @@
-import { shouldCloseHiddenTab, shouldCloseTab } from './auto-close.js';
+import { shouldCloseTab } from './auto-close.js';
 
 const browserApi = globalThis.browser;
 const extensionApi = browserApi ?? globalThis.chrome;
@@ -130,52 +130,6 @@ function closeWhenAnotherWindowGetsFocus() {
   });
 }
 
-function getTab(tabId) {
-  if (browserApi?.tabs) {
-    return browserApi.tabs.get(tabId);
-  }
-
-  return new Promise((resolve) => {
-    extensionApi.tabs.get(tabId, (tab) => {
-      // Reading lastError prevents Chrome from logging an unchecked runtime error.
-      void extensionApi.runtime.lastError;
-      resolve(tab);
-    });
-  });
-}
-
-function closeWhenHidden() {
-  const closeIfInBackground = async () => {
-    if (document.visibilityState !== 'hidden') {
-      return;
-    }
-
-    const tab = await selfTab;
-    if (!tab || document.visibilityState !== 'hidden') {
-      return;
-    }
-
-    let currentTab;
-    try {
-      currentTab = await getTab(tab.id);
-    } catch {
-      return;
-    }
-
-    // A hidden but still-active tab is navigating away (for example, a
-    // bookmark click), not switched away from. Closing it would kill the tab
-    // that is loading the destination, and the whole window if it was alone.
-    if (shouldCloseHiddenTab(currentTab)) {
-      closeTab(tab.id);
-    }
-  };
-
-  document.addEventListener('visibilitychange', closeIfInBackground);
-  // A tab opened in the background never receives visibilitychange; close it now.
-  closeIfInBackground();
-}
-
 listenForThemeChanges();
 closeWhenAnotherTabActivates();
 closeWhenAnotherWindowGetsFocus();
-closeWhenHidden();

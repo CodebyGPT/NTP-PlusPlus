@@ -9,6 +9,8 @@ const NTP_URLS = new Set([
   NTP_URL,
   'chrome://newtab/',
   'chrome://newtab',
+  'chrome://new-tab-page/',
+  'chrome://new-tab-page',
   'edge://newtab/',
   'edge://newtab',
   'about:newtab',
@@ -40,7 +42,9 @@ function removeTab(tabId) {
 
 function isNtpTab(tab) {
   return [tab.url, tab.pendingUrl].some(
-    (url) => typeof url === 'string' && NTP_URLS.has(url),
+    (url) =>
+      typeof url === 'string' &&
+      (NTP_URLS.has(url) || url.startsWith(NTP_URL)),
   );
 }
 
@@ -59,6 +63,13 @@ function closeOtherNtpTabsSafely(tabIdToKeep) {
 
 extensionApi.tabs.onActivated.addListener(({ tabId }) => {
   closeOtherNtpTabsSafely(tabId);
+});
+
+// A new tab page loaded in the background has no other event to close it.
+extensionApi.tabs.onUpdated.addListener((tabId, _changeInfo, tab) => {
+  if (!tab.active && isNtpTab(tab)) {
+    removeTab(tabId).catch(() => {});
+  }
 });
 
 extensionApi.windows.onFocusChanged.addListener((windowId) => {
