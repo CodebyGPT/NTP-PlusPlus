@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Just a NTP",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "A blank, theme-adaptive new tab page that closes when you switch away.",
   "chrome_url_overrides": {
     "newtab": "newtab.html"
