@@ -20,14 +20,14 @@
   --ntp-tile-width: clamp(4.5rem, 17vw, 6.5rem);
   --ntp-tile-gap: clamp(0.5rem, 1.5vw, 1.25rem);
   --ntp-tile-radius: 3px;
-  --ntp-tile-icon-size: 2.5rem;
+  --ntp-tile-icon-size: 2.875rem;
   --ntp-tile-icon-radius: 50%;
   --ntp-tile-icon-bg: rgb(0 0 0 / 6%);
   --ntp-tile-icon-hover-scale: 1.3;
-  /* One favicon size for both styles: 18% inset leaves the corners of a square
-     favicon just inside the round backing (the corner of an inscribed square
-     sits at 70.7% of its width), and matches the Firefox-style icon size. */
-  --ntp-tile-favicon-inset: 18%;
+  /* One favicon size for both styles. The Chromium backing is a little larger
+     than the Firefox one so a 25.6px square keeps ~5px between its corners and
+     the circle (a square inscribed in a circle reaches 70.7% of its width). */
+  --ntp-tile-favicon-size: 1.6rem;
   --ntp-tile-bg-hover: rgb(0 0 0 / 8%);
   --ntp-tile-title-line-height: 1.3;
   --ntp-tile-title-clamp: 1;
@@ -153,9 +153,10 @@ body {
 
 .ntp-tile-favicon {
   position: absolute;
-  inset: var(--ntp-tile-favicon-inset);
-  inline-size: calc(100% - 2 * var(--ntp-tile-favicon-inset));
-  block-size: calc(100% - 2 * var(--ntp-tile-favicon-inset));
+  inset: 0;
+  margin: auto;
+  inline-size: var(--ntp-tile-favicon-size);
+  block-size: var(--ntp-tile-favicon-size);
   object-fit: contain;
 }
 
@@ -188,6 +189,10 @@ body {
 
 /* Firefox style: no tile background, icon backing grows from its center on
    hover and the remove button fades in over the icon's top-right corner. */
+body.ntp-firefox-style {
+  --ntp-tile-icon-size: 2.5rem;
+}
+
 body.ntp-firefox-style .ntp-tile-link {
   border-radius: 0;
 }

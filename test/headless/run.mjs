@@ -828,13 +828,12 @@ async function chromeScenario(page, errors) {
       })()`);
       assert(info, 'icon or favicon missing');
       assert(
-        info.gap > 0.5,
+        Math.abs(info.gap - 5) <= 1,
         `favicon corner is ${info.gap.toFixed(1)}px from the circle edge`,
       );
       assert(
-        Math.abs(info.faviconSize - info.iconSize * 0.64) < 0.5,
-        `favicon is ${info.faviconSize.toFixed(1)}px, expected the Firefox-style ` +
-          `${(info.iconSize * 0.64).toFixed(1)}px`,
+        Math.abs(info.faviconSize - 25.6) < 0.5,
+        `favicon is ${info.faviconSize.toFixed(1)}px, expected the Firefox-style 25.6px`,
       );
       return `${info.faviconSize.toFixed(1)}px favicon, ${info.gap.toFixed(1)}px corner gap`;
     },
@@ -1033,6 +1032,7 @@ async function firefoxScenario(page, errors) {
           iconRadius: getComputedStyle(icon).borderTopLeftRadius,
           linkBackground: getComputedStyle(link).backgroundColor,
           styleChecked: document.querySelector('#opt-firefox-style')?.checked,
+          iconSize: icon.getBoundingClientRect().width,
         };
       })()`);
       assert(info, 'tile markup missing');
@@ -1049,7 +1049,11 @@ async function firefoxScenario(page, errors) {
         `Firefox tiles must not draw a tile background (${info.linkBackground})`,
       );
       assert(info.styleChecked === true, 'style checkbox not checked on Firefox');
-      return `8px icon radius, transparent tile`;
+      assert(
+        Math.abs(info.iconSize - 40) < 0.5,
+        `Firefox icon backing is ${info.iconSize.toFixed(1)}px, expected 40px`,
+      );
+      return `8px icon radius, 40px backing, transparent tile`;
     },
   );
 
