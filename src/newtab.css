@@ -64,6 +64,8 @@
   --ntp-card-gutter: clamp(1rem, 5vw, 6rem);
   --ntp-card-copy-size: 1.75rem;
   --ntp-card-copy-radius: 6px;
+  --ntp-card-copy-active-bg: rgb(0 0 0 / 18%);
+  --ntp-card-copy-active-scale: 0.9;
   --ntp-card-copy-glyph-size: 0.6875rem;
   --ntp-card-placeholder-size: 2.5rem;
   /* Material 3 Expressive "default spatial" curve: the overshoot past 1 is the
@@ -112,6 +114,7 @@
     --ntp-card-shadow: 0 6px 24px rgb(0 0 0 / 55%);
     --ntp-card-fg: #f2f2f6;
     --ntp-card-muted: #b6b6c2;
+    --ntp-card-copy-active-bg: rgb(255 255 255 / 22%);
     --ntp-card-snapshot-bg: rgb(255 255 255 / 6%);
     --ntp-settings-bg: rgb(255 255 255 / 8%);
     --ntp-settings-bg-hover: rgb(255 255 255 / 14%);
@@ -576,12 +579,20 @@ body.ntp-firefox-style .ntp-tile-link:focus-visible .ntp-tile-icon {
   cursor: pointer;
   transition:
     background-color var(--ntp-transition) linear,
+    transform var(--ntp-transition) var(--ntp-card-ease),
     color var(--ntp-transition) linear;
 }
 
 .ntp-card-copy:hover {
   background-color: var(--ntp-tile-bg-hover);
   color: var(--ntp-card-fg);
+}
+
+/* Pressed feedback has to be visible immediately, not only after the click. */
+.ntp-card-copy:active {
+  background-color: var(--ntp-card-copy-active-bg);
+  transform: scale(var(--ntp-card-copy-active-scale));
+  transition-duration: 0ms;
 }
 
 .ntp-card-copy:focus-visible {

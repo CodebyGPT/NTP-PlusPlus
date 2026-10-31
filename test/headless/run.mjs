@@ -1812,6 +1812,61 @@ async function cardsScenario(page, errors) {
     return info.label;
   });
 
+  await check('cards', 'the copy button reacts to a press', async () => {
+    const point = await page.evaluate(`(() => {
+      const box = document.querySelector('.ntp-card-copy').getBoundingClientRect();
+      return { x: Math.round(box.left + box.width / 2), y: Math.round(box.top + box.height / 2) };
+    })()`);
+    const readStyle = () =>
+      page.evaluate(`(() => {
+        const style = getComputedStyle(document.querySelector('.ntp-card-copy'));
+        const matrix = style.transform === 'none' ? new DOMMatrix() : new DOMMatrix(style.transform);
+        return { background: style.backgroundColor, scale: Number(matrix.a.toFixed(3)) };
+      })()`);
+
+    const idle = await readStyle();
+    await page.cdp.send(
+      'Input.dispatchMouseEvent',
+      { type: 'mouseMoved', x: point.x, y: point.y, button: 'none' },
+      page.sessionId,
+    );
+    await page.cdp.send(
+      'Input.dispatchMouseEvent',
+      { type: 'mousePressed', x: point.x, y: point.y, button: 'left', clickCount: 1 },
+      page.sessionId,
+    );
+    await sleep(120);
+    const pressed = await readStyle();
+    await page.cdp.send(
+      'Input.dispatchMouseEvent',
+      { type: 'mouseReleased', x: point.x, y: point.y, button: 'left', clickCount: 1 },
+      page.sessionId,
+    );
+    await page.cdp.send(
+      'Input.dispatchMouseEvent',
+      { type: 'mouseMoved', x: 2, y: 2, button: 'none' },
+      page.sessionId,
+    );
+    await sleep(250);
+    const released = await readStyle();
+    // Let the stack finish sliding back before the next check hovers a card.
+    await sleep(600);
+
+    assert(
+      pressed.scale < idle.scale - 0.05,
+      `press did not scale the button: ${idle.scale} -> ${pressed.scale}`,
+    );
+    assert(
+      pressed.background !== idle.background,
+      `press did not change the background: ${pressed.background}`,
+    );
+    assert(
+      released.scale > pressed.scale + 0.05,
+      `button stayed pressed after release: ${pressed.scale} -> ${released.scale}`,
+    );
+    return `${idle.scale} -> ${pressed.scale} -> ${released.scale}`;
+  });
+
   await check('cards', 'clicking the card restores its session', async () => {
     await page.evaluate(`document.querySelectorAll('.ntp-card-open')[2].click()`);
     const restored = await page.waitFor('globalThis.__restoredSession', {

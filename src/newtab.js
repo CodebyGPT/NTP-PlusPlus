@@ -582,7 +582,13 @@ function createCardElement(card, stackIndex) {
   if (copyIconTemplate) {
     copy.append(copyIconTemplate.content.cloneNode(true));
   }
-  copy.addEventListener('click', async () => {
+  copy.addEventListener('click', async (event) => {
+    // A pointer click leaves the button focused, and `:focus-within` would keep
+    // the stack opened up long after the cursor left. Keyboard users keep the
+    // focus so they can go on tabbing.
+    if (event.detail > 0) {
+      copy.blur();
+    }
     try {
       await navigator.clipboard.writeText(card.url);
       logEvent('recent:copy', { url: card.url });
