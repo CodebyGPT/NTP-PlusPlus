@@ -131,17 +131,73 @@ export function toRecentSessions(sessions, { webOnly = false } = {}) {
 export function buildRecentCards(sessions, snapshots, maxCards, options) {
   const cards = [];
   const taken = new Set();
+  const settings = options ?? {};
 
-  for (const session of toRecentSessions(sessions, options)) {
+  for (const entry of sessions ?? []) {
     if (maxCards !== undefined && cards.length >= maxCards) {
       break;
     }
 
+    if (entry?.window) {
+      if (settings.excludeWindows) {
+        continue;
+      }
+
+      const card = windowCard(entry.window, settings);
+      if (card) {
+        cards.push(card);
+      }
+      continue;
+    }
+
+    const tab = entry?.tab;
+    if (!tab || typeof tab.sessionId !== 'string') {
+      continue;
+    }
+
+    if (settings.webOnly ? !isWebUrl(tab.url) : !isCardUrl(tab.url)) {
+      continue;
+    }
+
     cards.push({
-      ...session,
-      snapshot: takeSnapshot(snapshots, taken, session.url),
+      kind: 'tab',
+      sessionId: tab.sessionId,
+      title: tab.title || tab.url,
+      url: tab.url,
+      snapshot: takeSnapshot(snapshots, taken, tab.url),
     });
   }
 
   return cards;
+}
+
+// A closed window is a single session covering many tabs, so it gets one card
+// that lists them instead of a snapshot. The head line is the tab that was in
+// front when the window closed, because that is the one people remember.
+function windowCard(window, options) {
+  const tabs = (Array.isArray(window.tabs) ? window.tabs : [])
+    .filter(
+      (tab) =>
+        tab && (options.webOnly ? isWebUrl(tab.url) : isCardUrl(tab.url)),
+    )
+    .map((tab) => ({
+      title: tab.title || tab.url,
+      url: tab.url,
+      active: tab.active === true,
+    }));
+
+  // A window whose every tab was filtered out has nothing to show or restore.
+  if (tabs.length === 0) {
+    return undefined;
+  }
+
+  const head = tabs.find((tab) => tab.active) ?? tabs[0];
+
+  return {
+    kind: 'window',
+    sessionId: window.sessionId,
+    head: { title: head.title, url: head.url },
+    count: tabs.length,
+    tabs: tabs.map(({ title, url }) => ({ title, url })),
+  };
 }

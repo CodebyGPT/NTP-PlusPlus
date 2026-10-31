@@ -2,7 +2,9 @@ import { applyTranslations, t } from './i18n.js';
 import {
   buildRecentCards,
   charLimitForWidth,
+  ELLIPSIS,
   limitCardText,
+  limitLabel,
   TITLE_SEPARATOR,
 } from './stack.js';
 import {
@@ -29,6 +31,9 @@ const EXCLUDE_BOOKMARKS_KEY = 'ntp-exclude-bookmarks';
 // Privileged pages are restorable but cannot be captured; some people would
 // rather not see them in the card stack at all, so this defaults to excluding.
 const EXCLUDE_PRIVILEGED_KEY = 'ntp-exclude-privileged';
+// Closed windows restore as a whole and list their tabs, which some people find
+// noisy next to single pages, so this is off by default.
+const EXCLUDE_WINDOWS_KEY = 'ntp-exclude-windows';
 const TILE_STYLE_KEY = 'ntp-tile-style';
 const RECENT_COUNT_KEY = 'ntp-recent-count';
 const RECENT_COUNT_OPTIONS = [1, 2, 3];
@@ -54,6 +59,7 @@ const excludeBookmarksInput = document.getElementById('opt-exclude-bookmarks');
 const firefoxStyleInput = document.getElementById('opt-firefox-style');
 const recentCountInput = document.getElementById('opt-recent-count');
 const excludePrivilegedInput = document.getElementById('opt-exclude-privileged');
+const excludeWindowsInput = document.getElementById('opt-exclude-windows');
 const recentElement = document.getElementById('ntp-recent');
 const copyIconTemplate = document.getElementById('ntp-card-copy-icon');
 const hiddenKeys = new Set(readStoredArray(HIDDEN_SITES_KEY));
@@ -64,6 +70,7 @@ const settings = {
   recentCount: readStoredCount(RECENT_COUNT_KEY, DEFAULT_RECENT_COUNT),
   // Default on: this is how the cards behaved before privileged pages showed up.
   excludePrivileged: readStoredFlag(EXCLUDE_PRIVILEGED_KEY, true),
+  excludeWindows: readStoredFlag(EXCLUDE_WINDOWS_KEY),
 };
 let topSites = [];
 let excludedHosts = new Set();
@@ -525,6 +532,16 @@ function setupSettings() {
       refreshRecentCards();
     });
   }
+
+  if (excludeWindowsInput) {
+    excludeWindowsInput.checked = settings.excludeWindows;
+    excludeWindowsInput.addEventListener('change', () => {
+      settings.excludeWindows = excludeWindowsInput.checked;
+      saveStoredFlag(EXCLUDE_WINDOWS_KEY, settings.excludeWindows);
+      logEvent('settings:exclude-windows', { value: settings.excludeWindows });
+      refreshRecentCards();
+    });
+  }
 }
 
 // The copy glyph lives in a <template> in the HTML: inline SVG markup parses
@@ -551,14 +568,17 @@ function createPlaceholderLetter(url) {
 }
 
 function createCardElement(card, stackIndex) {
+  const isWindow = card.kind === 'window';
   const item = document.createElement('article');
   item.className = 'ntp-card';
   item.style.setProperty('--ntp-card-index', String(stackIndex));
 
   const link = document.createElement('a');
   link.className = 'ntp-card-open';
-  link.href = card.url;
-  link.title = `${card.title}${TITLE_SEPARATOR}${card.url}`;
+  link.href = isWindow ? card.head.url : card.url;
+  link.title = isWindow
+    ? windowLabel(card)
+    : `${card.title}${TITLE_SEPARATOR}${card.url}`;
   link.addEventListener('click', (event) => {
     event.preventDefault();
     restoreSession(card);
@@ -567,7 +587,8 @@ function createCardElement(card, stackIndex) {
   const bar = document.createElement('div');
   bar.className = 'ntp-card-bar';
 
-  const source = faviconSource({ sourceUrl: card.url });
+  // A window has no icon of its own, so its bar starts straight at the title.
+  const source = isWindow ? undefined : faviconSource({ sourceUrl: card.url });
   if (source) {
     const image = document.createElement('img');
     image.className = 'ntp-card-favicon';
@@ -580,40 +601,51 @@ function createCardElement(card, stackIndex) {
     bar.append(image);
   }
 
-  const letter = document.createElement('span');
-  letter.className = 'ntp-card-bar-letter';
-  letter.setAttribute('aria-hidden', 'true');
-  letter.textContent = initialOf(card.url);
-  bar.append(letter);
+  if (!isWindow) {
+    const letter = document.createElement('span');
+    letter.className = 'ntp-card-bar-letter';
+    letter.setAttribute('aria-hidden', 'true');
+    letter.textContent = initialOf(card.url);
+    bar.append(letter);
+  }
 
   const label = document.createElement('span');
   label.className = 'ntp-card-label';
   const title = document.createElement('span');
   title.className = 'ntp-card-title';
-  title.textContent = card.title;
-  const url = document.createElement('span');
-  url.className = 'ntp-card-url';
-  url.textContent = card.url;
-  label.append(title, document.createTextNode(TITLE_SEPARATOR), url);
+  title.textContent = isWindow ? windowLabel(card) : card.title;
+  label.append(title);
+  if (!isWindow) {
+    const url = document.createElement('span');
+    url.className = 'ntp-card-url';
+    url.textContent = card.url;
+    label.append(document.createTextNode(TITLE_SEPARATOR), url);
+  }
   bar.append(label);
 
-  const snapshot = document.createElement('div');
-  snapshot.className = 'ntp-card-snapshot';
-  if (card.snapshot) {
-    const image = document.createElement('img');
-    image.alt = '';
-    image.src = card.snapshot;
-    snapshot.append(image);
+  const body = document.createElement('div');
+  if (isWindow) {
+    // Filled in by applyCardText(): that is the only place that knows how much
+    // room the card ended up with.
+    body.className = 'ntp-card-tabs';
   } else {
-    snapshot.classList.add('is-empty');
-    snapshot.append(
-      source
-        ? createPlaceholderIcon(source, card.url)
-        : createPlaceholderLetter(card.url),
-    );
+    body.className = 'ntp-card-snapshot';
+    if (card.snapshot) {
+      const image = document.createElement('img');
+      image.alt = '';
+      image.src = card.snapshot;
+      body.append(image);
+    } else {
+      body.classList.add('is-empty');
+      body.append(
+        source
+          ? createPlaceholderIcon(source, card.url)
+          : createPlaceholderLetter(card.url),
+      );
+    }
   }
 
-  link.append(bar, snapshot);
+  link.append(bar, body);
 
   const copy = document.createElement('button');
   copy.type = 'button';
@@ -629,9 +661,14 @@ function createCardElement(card, stackIndex) {
     if (event.detail > 0) {
       copy.blur();
     }
+    // A window copies every tab it held, one "title - url" line each.
+    const payload = isWindow ? tabsText(card) : card.url;
     try {
-      await navigator.clipboard.writeText(card.url);
-      logEvent('recent:copy', { url: card.url });
+      await navigator.clipboard.writeText(payload);
+      logEvent('recent:copy', {
+        url: isWindow ? card.head.url : card.url,
+        lines: isWindow ? card.count : 1,
+      });
     } catch (error) {
       logEvent('recent:copy-error', { message: error?.message });
     }
@@ -644,12 +681,29 @@ function createCardElement(card, stackIndex) {
 async function restoreSession(card) {
   try {
     await extensionApi.sessions.restore(card.sessionId);
-    logEvent('recent:restore', { sessionId: card.sessionId, url: card.url });
+    logEvent('recent:restore', {
+      sessionId: card.sessionId,
+      url: card.kind === 'window' ? card.head.url : card.url,
+    });
   } catch (error) {
-    // The session may already be gone; opening the URL is still useful.
+    // The session may already be gone; a window cannot be reopened by URL, but
+    // its front tab still can.
     logEvent('recent:restore-error', { message: error?.message });
-    location.href = card.url;
+    location.href = card.kind === 'window' ? card.head.url : card.url;
   }
+}
+
+// Every tab line, and the clipboard payload for a window card, share one shape.
+function tabLine(tab) {
+  return `${tab.title}${TITLE_SEPARATOR}${tab.url}`;
+}
+
+function tabsText(card) {
+  return card.tabs.map(tabLine).join('\n');
+}
+
+function windowLabel(card) {
+  return t('windowCardTitle', [tabLine(card.head), String(card.count)]);
 }
 
 function measureCharWidth() {
@@ -662,26 +716,93 @@ function measureCharWidth() {
   return width;
 }
 
+// Row height comes from the same styling the real rows use, so a font change
+// moves the computed row count along with it.
+function measureRowHeight() {
+  const sample = document.createElement('div');
+  sample.className = 'ntp-card-tab-row';
+  // Out of flow: measuring must not nudge the page for a frame.
+  sample.style.position = 'absolute';
+  sample.style.visibility = 'hidden';
+  sample.textContent = CHAR_SAMPLE.slice(0, 1);
+  document.body.append(sample);
+  const height = sample.getBoundingClientRect().height;
+  sample.remove();
+  return height;
+}
+
+function fillWindowCard(cardElement, card, charWidth) {
+  const list = cardElement.querySelector('.ntp-card-tabs');
+  if (!list) {
+    return;
+  }
+
+  const style = getComputedStyle(list);
+  const paddingBlock =
+    parseFloat(style.paddingBlockStart) + parseFloat(style.paddingBlockEnd);
+  const paddingInline =
+    parseFloat(style.paddingInlineStart) + parseFloat(style.paddingInlineEnd);
+  const limit = charLimitForWidth(
+    list.clientWidth - paddingInline,
+    charWidth,
+  );
+  const rowHeight = measureRowHeight();
+  const rows = Math.max(
+    1,
+    Math.floor((list.clientHeight - paddingBlock) / (rowHeight || 1)),
+  );
+  // Too many tabs: the last line becomes the ellipsis, still a normal row, so
+  // the list stays centred.
+  const truncated = card.tabs.length > rows;
+  const shown = truncated ? card.tabs.slice(0, rows - 1) : card.tabs;
+  const lines = shown.map((tab) => limitLabel(tabLine(tab), limit));
+  if (truncated) {
+    lines.push(ELLIPSIS);
+  }
+
+  list.replaceChildren(
+    ...lines.map((line) => {
+      const row = document.createElement('div');
+      row.className = 'ntp-card-tab-row';
+      row.textContent = line;
+      return row;
+    }),
+  );
+}
+
 function applyCardText() {
   if (!recentElement) {
     return;
   }
 
-  const labels = recentElement.querySelectorAll('.ntp-card-label');
-  if (labels.length === 0) {
+  const cards = recentElement.querySelectorAll('.ntp-card');
+  if (cards.length === 0) {
     return;
   }
 
-  const limit = charLimitForWidth(labels[0].clientWidth, measureCharWidth());
+  const charWidth = measureCharWidth();
   // DOM order is oldest first, the card list is newest first.
   const ordered = [...recentCards].reverse();
 
-  labels.forEach((label, index) => {
+  cards.forEach((cardElement, index) => {
     const card = ordered[index];
     if (!card) {
       return;
     }
 
+    const label = cardElement.querySelector('.ntp-card-label');
+    if (card.kind === 'window') {
+      // One sentence, so it gets the whole bar rather than half of it.
+      const limit = charLimitForWidth(label.clientWidth, charWidth);
+      label.querySelector('.ntp-card-title').textContent = limitLabel(
+        windowLabel(card),
+        limit,
+      );
+      fillWindowCard(cardElement, card, charWidth);
+      return;
+    }
+
+    const limit = charLimitForWidth(label.clientWidth, charWidth);
     const text = limitCardText(card, limit);
     label.querySelector('.ntp-card-title').textContent = text.title;
     label.querySelector('.ntp-card-url').textContent = text.url;
@@ -728,6 +849,7 @@ async function refreshRecentCards() {
 
   recentCards = buildRecentCards(sessions, snapshots, settings.recentCount, {
     webOnly: settings.excludePrivileged,
+    excludeWindows: settings.excludeWindows,
   });
   renderRecentCards();
   logEvent('recent:render', {

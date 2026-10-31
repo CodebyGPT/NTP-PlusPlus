@@ -144,4 +144,57 @@ assert.equal(unmatched[1].snapshot, undefined);
 
 assert.deepEqual(buildRecentCards([], snapshots, 3), []);
 
+// A closed window becomes one card that carries its tabs.
+const windowSessions = [
+  { tab: { sessionId: 's1', title: 'Alpha', url: 'https://a.example/' } },
+  {
+    window: {
+      sessionId: 'w1',
+      tabs: [
+        { title: 'One', url: 'https://one.example/', active: false },
+        { title: 'Two', url: 'https://two.example/', active: true },
+        { title: 'Local', url: 'file:///tmp/x' },
+      ],
+    },
+  },
+];
+const windowCards = buildRecentCards(windowSessions, [], 3);
+assert.deepEqual(
+  windowCards.map((card) => card.kind),
+  ['tab', 'window'],
+);
+assert.equal(windowCards[1].sessionId, 'w1');
+assert.equal(windowCards[1].count, 3);
+assert.deepEqual(windowCards[1].head, { title: 'Two', url: 'https://two.example/' });
+assert.deepEqual(
+  windowCards[1].tabs.map((tab) => tab.url),
+  ['https://one.example/', 'https://two.example/', 'file:///tmp/x'],
+);
+// No active tab: the first one stands in for the headline.
+const noActive = buildRecentCards(
+  [{ window: { sessionId: 'w2', tabs: [{ title: 'Only', url: 'https://only.example/' }] } }],
+  [],
+  3,
+);
+assert.deepEqual(noActive[0].head, { title: 'Only', url: 'https://only.example/' });
+// A window counts against the card limit like any other session.
+assert.equal(buildRecentCards(windowSessions, [], 1).length, 1);
+// "Exclude windows" drops them, the tab card survives.
+assert.deepEqual(
+  buildRecentCards(windowSessions, [], 3, { excludeWindows: true }).map((card) => card.kind),
+  ['tab'],
+);
+// "Exclude privileged pages" also filters the tabs inside the window, and a
+// window left with nothing to show disappears instead of rendering empty.
+const webWindows = buildRecentCards(windowSessions, [], 3, { webOnly: true });
+assert.equal(webWindows[1].count, 2);
+assert.deepEqual(
+  buildRecentCards(
+    [{ window: { sessionId: 'w3', tabs: [{ title: 'Blank', url: 'about:blank' }] } }],
+    [],
+    3,
+  ),
+  [],
+);
+
 console.log('stack checks passed');

@@ -53,5 +53,20 @@
   "optionExcludePrivileged": {
     "message": "Исключить служебные страницы",
     "description": "Такие страницы, как chrome://settings и about:config, восстанавливаются, но не снимаются, поэтому по умолчанию не попадают в карточки."
+  },
+  "optionExcludeWindows": {
+    "message": "Исключить окна",
+    "description": "Закрытое окно показывается одной карточкой со списком вкладок."
+  },
+  "windowCardTitle": {
+    "message": "Содержит «$head$», всего вкладок: $count$",
+    "placeholders": {
+      "head": {
+        "content": "$1"
+      },
+      "count": {
+        "content": "$2"
+      }
+    }
   }
 }

@@ -222,9 +222,23 @@ function buildBrowserMock(catalog) {
 
   globalThis.browser = {
     i18n: {
-      getMessage(key) {
+      // Mirrors the real API: $name$ placeholders resolve through
+      // placeholders[name].content ("$1") to the substitution at that index.
+      getMessage(key, substitutions) {
         const entry = messages[key];
-        return entry && typeof entry.message === 'string' ? entry.message : '';
+        if (!entry || typeof entry.message !== 'string') {
+          return '';
+        }
+        const values =
+          typeof substitutions === 'string' ? [substitutions] : substitutions || [];
+        return entry.message.replace(/\\$([A-Za-z0-9_@]+)\\$/g, (match, name) => {
+          const placeholder = entry.placeholders && entry.placeholders[name];
+          if (!placeholder) {
+            return match;
+          }
+          const index = Number(String(placeholder.content).replace(/\\$/g, ''));
+          return Number.isInteger(index) && index > 0 ? String(values[index - 1] || '') : match;
+        });
       },
     },
     topSites: {
@@ -302,6 +316,16 @@ const CARD_SESSIONS = [
   { window: { sessionId: 's-window' } },
 ];
 const CARD_SNAPSHOTS = [{ url: 'https://eta.example.com/seven', dataUrl: CARD_SNAPSHOT }];
+
+// A closed window carries many tabs, which is the case the tab list exists for.
+const WINDOW_TAB_COUNT = 200;
+const WINDOW_HEAD = { title: 'Front page', url: 'https://front.example.com/' };
+const WINDOW_TABS = Array.from({ length: WINDOW_TAB_COUNT }, (_, index) => ({
+  title: `Tab number ${index + 1} with a long enough title to need folding`,
+  url: `https://tabs.example.com/page/${index + 1}?with=a&fairly=long&query=string`,
+  active: index === 3,
+}));
+WINDOW_TABS[3] = { ...WINDOW_TABS[3], ...WINDOW_HEAD };
 
 function buildCardsPreload(catalog) {
   return `${buildBrowserMock(catalog)}
@@ -2176,6 +2200,100 @@ async function cardsScenario(page, errors) {
     assert(stored === 'false', `stored flag is ${stored}`);
 
     return `2 cards, no favicon, letter "${info.letter}"`;
+  });
+
+  await check('cards', 'a closed window gets a card that lists its tabs', async () => {
+    const unchecked = await page.evaluate(
+      `document.getElementById('opt-exclude-windows').checked`,
+    );
+    assert(unchecked === false, `windows start excluded: ${unchecked}`);
+
+    await page.evaluate(`(() => {
+      const api = globalThis.browser ?? globalThis.chrome;
+      api.sessions.getRecentlyClosed = async () => [
+        { window: { sessionId: 's-w1', tabs: ${JSON.stringify(WINDOW_TABS)} } },
+      ];
+      api.sessions.restore = async (sessionId) => {
+        globalThis.__restoredSession = sessionId;
+      };
+      api.runtime.sendMessage = async () => ({ snapshots: [] });
+      Object.defineProperty(navigator, 'clipboard', {
+        configurable: true,
+        value: { writeText: async (text) => { globalThis.__copied = text; } },
+      });
+      globalThis.__restoredSession = undefined;
+      globalThis.__copied = undefined;
+      const select = document.getElementById('opt-recent-count');
+      select.value = '3';
+      select.dispatchEvent(new Event('change'));
+    })()`);
+    await page.waitFor(`document.querySelectorAll('.ntp-card').length === 1`, {
+      timeout: 3000,
+      label: 'one window card',
+    });
+
+    const info = await page.evaluate(`(() => {
+      const card = document.querySelector('.ntp-card');
+      const bar = card.querySelector('.ntp-card-bar');
+      const list = card.querySelector('.ntp-card-tabs');
+      const rows = [...list.querySelectorAll('.ntp-card-tab-row')];
+      const style = getComputedStyle(list);
+      const box = list.getBoundingClientRect();
+      const first = rows[0].getBoundingClientRect();
+      const last = rows[rows.length - 1].getBoundingClientRect();
+      return {
+        icons: bar.querySelectorAll('.ntp-card-favicon, .ntp-card-bar-letter').length,
+        title: card.querySelector('.ntp-card-title').textContent,
+        rows: rows.map((row) => row.textContent),
+        snapshots: card.querySelectorAll('.ntp-card-snapshot img').length,
+        topGap: first.top - box.top - parseFloat(style.paddingBlockStart),
+        bottomGap: box.bottom - last.bottom - parseFloat(style.paddingBlockEnd),
+        rowGrow: last.top - first.top,
+      };
+    })()`);
+
+    assert(info.icons === 0, `${info.icons} icons in a window title bar`);
+    assert(info.snapshots === 0, 'a window card should have no snapshot');
+    assert(info.title.startsWith('Contains'), `title is "${info.title}"`);
+    assert(
+      info.title.includes('Front page') &&
+        info.title.includes(String(WINDOW_TAB_COUNT)),
+      `title lost its front tab or count: "${info.title}"`,
+    );
+    assert(info.rows.length > 2, `only ${info.rows.length} rows`);
+    assert(
+      info.rows.length < WINDOW_TAB_COUNT,
+      `${info.rows.length} rows for ${WINDOW_TAB_COUNT} tabs`,
+    );
+    assert(
+      info.rows[info.rows.length - 1] === '…',
+      `last row is "${info.rows[info.rows.length - 1]}"`,
+    );
+    assert(
+      info.rows[0].length < WINDOW_TABS[0].title.length + WINDOW_TABS[0].url.length + 3,
+      `first row was not folded: "${info.rows[0]}"`,
+    );
+    assert(
+      Math.abs(info.topGap - info.bottomGap) < 2,
+      `list is not centred: ${info.topGap} vs ${info.bottomGap}`,
+    );
+
+    await recordScreenshot(page, 'cards', 'chrome-cards-window.png');
+
+    await page.evaluate(`document.querySelector('.ntp-card-copy').click()`);
+    const copied = await page.evaluate(`globalThis.__copied`);
+    const lines = String(copied).split('\n');
+    assert(lines.length === WINDOW_TAB_COUNT, `copied ${lines.length} lines`);
+    assert(
+      lines[0] === `${WINDOW_TABS[0].title} - ${WINDOW_TABS[0].url}`,
+      `first copied line is "${lines[0]}"`,
+    );
+
+    await page.evaluate(`document.querySelector('.ntp-card-open').click()`);
+    const restored = await page.evaluate(`globalThis.__restoredSession`);
+    assert(restored === 's-w1', `restored ${restored}`);
+
+    return `${info.rows.length} rows, last one "…", ${lines.length} lines copied`;
   });
 
   await check('cards', 'no uncaught page errors', async () => {

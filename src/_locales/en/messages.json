@@ -53,5 +53,20 @@
   "optionExcludePrivileged": {
     "message": "Exclude privileged pages",
     "description": "Pages like chrome://settings and about:config can be restored but never captured, so they are left out of the cards."
+  },
+  "optionExcludeWindows": {
+    "message": "Exclude windows",
+    "description": "Closed windows appear as one card listing their tabs."
+  },
+  "windowCardTitle": {
+    "message": "Contains “$head$” and $count$ tabs in total",
+    "placeholders": {
+      "head": {
+        "content": "$1"
+      },
+      "count": {
+        "content": "$2"
+      }
+    }
   }
 }

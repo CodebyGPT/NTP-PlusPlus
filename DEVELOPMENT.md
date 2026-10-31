@@ -176,6 +176,11 @@ test/
 - 新标签页通过 `runtime.sendMessage({ type: 'ntp:snapshots' })` 取快照，按 `url` 与会话列表配对；同一个 `url` 的多个会话只消费一份快照。
 - `background.js` 是不含 `import`/`export` 的经典脚本：Chrome 只能加载 `service_worker`，Firefox 不支持 `service_worker`（109–120 甚至会因为声明了它而完全不启动后台），所以 `build.mjs` 按 target 分别写 `background.service_worker` 与 `background.scripts`。
 - 新标签页不自己截图：截图需要标签页可见，而新标签页一出现就是当前页，截到的是它自己。
+- 整个窗口的卡片：`sessions.getRecentlyClosed()` 还会返回 window 型条目（关掉的是整个窗口），这种条目变成一张 `kind: 'window'` 的卡片。标题栏**不显示图标**，标题是“包含<当前标签页的标题 - 链接>等 N 个标签页”，N 是窗口里剩下的标签页数（受过滤影响），当前标签页取 `tabs.find((tab) => tab.active) ?? tabs[0]`。卡片正文不是快照，而是标签页列表，每行“标题 - 链接”，横竖都在卡片里居中（`justify-content: center`，行数少时上下留白对称）。
+- 窗口卡片的字数与行数上限都是量出来的，不硬编码：`fillWindowCard()` 读 `getComputedStyle(list)` 的 `paddingInline`/`paddingBlock`（内边距本身就是“与卡片边缘保持距离”），字数上限 = `charLimitForWidth(可用宽度, 平均字符宽)`，行数上限 = `floor(可用高度 / 行高)`；行高由 `measureRowHeight()` 用绝对定位的探针量，避免插入可见节点抖一帧。装不下的行直接不生成，最后一行换成 `…`（省略号按正常行参与排版，所以列表依然居中）——和“卡片组只渲染选中的张数”同一个思路：不留隐藏 DOM。
+- 窗口卡片的复制按钮复制**所有**标签页，每行“标题 - 链接”、`\n` 分隔、不插空行（`tabsText()`）；单标签页卡片仍然只复制那一个 URL。
+- 窗口卡片由 `stack.js` 的 `windowCard()` 产出：过滤规则与标签页卡片一致（`webOnly` 时只留 http/https，否则用 `isCardUrl`），过滤后一个标签页都不剩就返回 `undefined`，整张卡片不渲染。窗口卡片与标签页卡片平等占用同一个 `maxCards` 名额。
+- 带替换的文案（如 `windowCardTitle`）必须在 `messages.json` 里写 `placeholders`（`{"head": {"content": "$1"}}`），正文写 `$head$`；只写 `$1$` 会让 Chrome **拒绝加载整个扩展**，报 “Variable $1$ used but not defined”。`getMessage(key, [a, b])` 按顺序填 `$1`、`$2`。
 
 ### 设置弹窗
 
@@ -186,6 +191,7 @@ test/
 - “Firefox 风格瓦片”：只切 `body` 的 class，纯视觉开关，不影响任何列表逻辑；默认跟随浏览器判定。
 - “最近关闭卡片最大显示数”：下拉 1/2/3，存 `ntp-recent-count`，默认 3。改动后重新取一次列表重渲染，多出的卡片直接不渲染（不是隐藏），所以 DOM 里永远不会超过选中的张数。
 - “排除特权页面”：勾选（默认）时只收 http/https 会话，退回到“卡片只放网页”的老行为；取消勾选就让 `chrome://`、`about:`、`file://` 也进卡片。存 `ntp-exclude-privileged`，改动后立刻重新取列表重渲染。实现是一条 `{ webOnly }` 选项穿过 `buildRecentCards()` → `toRecentSessions()`，两套过滤规则都在 `stack.js` 里，UI 只负责传布尔值。
+- “排除窗口”：勾选后 window 型条目不再变成卡片；默认**不勾选**（关掉整个窗口通常比关掉一个标签页更值得恢复）。存 `ntp-exclude-windows`，同样即时重渲染。窗口卡片内部的标签页过滤与“排除特权页面”共用同一个 `webOnly` 开关。
 
 ## 构建与加载
 
@@ -225,6 +231,9 @@ npm run build
 - [ ] 快照只在内存里（重启浏览器后为空），超 720p 的已压到 720p
 - [ ] 设置里改“最近关闭卡片最大显示数”立即生效，刷新后仍保持
 - [ ] “排除特权页面”默认勾选时 `chrome://` 页面不出卡片，取消勾选后立刻出现；刷新后保持上次的选择
+- [ ] 关掉一个窗口后出现窗口卡片：标题栏无图标、标题是“包含…等 N 个标签页”，正文是横竖居中的标签页列表，装不下的行换成最后一行 `…`
+- [ ] 窗口卡片的复制按钮复制所有标签页（每行“标题 - 链接”，不插空行）；点卡片能恢复整个窗口
+- [ ] “排除窗口”默认不勾选；勾上后窗口卡片立刻消失，刷新后保持
 - [ ] 窄窗口下瓦片加卡片仍无滚动条、卡片区不被压扁成 0 高
 - [ ] `npm test` 与 `npm run build` 通过；`test/headless/run.mjs` 全绿，实际渲染与预期一致
 - [ ] 重大修改是逐项验证过的，不是在未验证的改动上继续叠加

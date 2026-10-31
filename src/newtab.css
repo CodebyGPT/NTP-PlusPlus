@@ -62,6 +62,11 @@
   /* The newest card runs past the bottom of the viewport on purpose. */
   --ntp-card-overhang: clamp(2rem, 12vh, 9rem);
   --ntp-card-gutter: clamp(1rem, 5vw, 6rem);
+  /* Tab list inside a closed-window card. Padding doubles as the breathing room
+     the list keeps from the card edges; JS measures what is left. */
+  --ntp-card-tabs-padding: clamp(0.5rem, 1.5vw, 1.25rem);
+  --ntp-card-tab-font-size: 0.8125rem;
+  --ntp-card-tab-line-height: 1.5;
   --ntp-card-copy-size: 1.75rem;
   --ntp-card-copy-radius: 6px;
   --ntp-card-copy-active-bg: rgb(0 0 0 / 18%);
@@ -687,6 +692,30 @@ body.ntp-firefox-style .ntp-tile-link:focus-visible .ntp-tile-icon {
   block-size: 100%;
   object-fit: cover;
   object-position: top center;
+}
+
+/* A closed window lists its tabs instead of showing a snapshot. The list is
+   centred both ways, so a short list sits in the middle and a long one fills the
+   body; how many rows fit is measured in JS from this box's own size. */
+.ntp-card-tabs {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: center;
+  min-block-size: 0;
+  padding: var(--ntp-card-tabs-padding);
+  overflow: hidden;
+  background-color: var(--ntp-card-snapshot-bg);
+}
+
+.ntp-card-tab-row {
+  flex: 0 0 auto;
+  overflow: hidden;
+  font-size: var(--ntp-card-tab-font-size);
+  line-height: var(--ntp-card-tab-line-height);
+  color: var(--ntp-card-muted);
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 /* Hidden but still laid out: the width of this sample is what the character

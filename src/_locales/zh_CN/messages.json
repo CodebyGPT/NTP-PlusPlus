@@ -53,5 +53,20 @@
   "optionExcludePrivileged": {
     "message": "排除特权页面",
     "description": "chrome://settings、about:config 这类页面可以恢复但无法截图，默认不出现在卡片里。"
+  },
+  "optionExcludeWindows": {
+    "message": "排除窗口",
+    "description": "被关闭的窗口会作为一张卡片列出它包含的标签页。"
+  },
+  "windowCardTitle": {
+    "message": "包含“$head$”等 $count$ 个标签页",
+    "placeholders": {
+      "head": {
+        "content": "$1"
+      },
+      "count": {
+        "content": "$2"
+      }
+    }
   }
 }
