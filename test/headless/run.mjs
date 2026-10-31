@@ -936,6 +936,61 @@ async function chromeScenario(page, errors) {
 
   await check(
     'chrome',
+    'the debug switch turns tile icons into letters',
+    async () => {
+      const readTiles = `(() => {
+        const visible = ${VISIBLE_FN};
+        return [...document.querySelectorAll('#ntp-tiles .ntp-tile-icon')].map((icon) => {
+          const image = icon.querySelector('img');
+          const letter = icon.querySelector('.ntp-tile-letter');
+          return {
+            image: Boolean(image) && visible(image),
+            letter: Boolean(letter) && visible(letter),
+            text: letter ? letter.textContent.trim() : '',
+          };
+        });
+      })()`;
+
+      const before = await page.evaluate(readTiles);
+      assert(before.length === 10, `${before.length} tiles before the switch`);
+      assert(
+        before.every((tile) => tile.image && !tile.letter),
+        'a tile was not showing its icon before the switch',
+      );
+
+      const toggle = async (checked) => {
+        await page.evaluate(`(() => {
+          const dialog = document.getElementById('ntp-settings');
+          if (!dialog.open) {
+            dialog.showModal();
+          }
+          const box = document.getElementById('opt-letter-favicons');
+          box.checked = ${checked};
+          box.dispatchEvent(new Event('change'));
+        })()`);
+      };
+
+      await toggle(true);
+      const degraded = await page.evaluate(readTiles);
+      assert(
+        degraded.every((tile) => !tile.image && tile.letter && tile.text.length > 0),
+        `after the switch: ${JSON.stringify(degraded)}`,
+      );
+
+      await toggle(false);
+      const restored = await page.evaluate(readTiles);
+      assert(
+        restored.every((tile) => tile.image && !tile.letter),
+        'icons did not come back when the switch was turned off',
+      );
+      await page.evaluate(`document.getElementById('ntp-settings').close()`);
+
+      return `10 tiles: ${degraded[0].text} … then icons again`;
+    },
+  );
+
+  await check(
+    'chrome',
     'a partial last row stays centered',
     async () => {
       const info = await page.evaluate(`(() => {

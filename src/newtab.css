@@ -252,6 +252,16 @@ body {
   line-height: 1;
 }
 
+/* Debug switch in the settings dialog: hide the real favicons so the letter
+   fallback can be checked on a page where every site has an icon. */
+body.ntp-letter-favicons .ntp-tile-icon img {
+  display: none;
+}
+
+body.ntp-letter-favicons .ntp-tile-icon .ntp-tile-letter {
+  visibility: visible;
+}
+
 /* One line on Chromium, two lines on the Firefox style (where the style
    override raises --ntp-tile-title-clamp). line-clamp keeps the ellipsis. */
 .ntp-tile-title {

@@ -68,5 +68,8 @@
         "content": "$2"
       }
     }
+  },
+  "optionLetterFavicons": {
+    "message": "Debug: letter icons only"
   }
 }

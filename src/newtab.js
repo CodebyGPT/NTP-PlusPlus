@@ -54,6 +54,7 @@ const TAB_ICON_GAP_PROPERTY = '--ntp-card-tab-gap';
 // CSS swaps the two tile styles off this class; Chromium is the default so an
 // unknown browser falls back to it.
 const FIREFOX_STYLE_CLASS = 'ntp-firefox-style';
+const LETTER_FAVICONS_CLASS = 'ntp-letter-favicons';
 
 const tilesElement = document.getElementById('ntp-tiles');
 const settingsButton = document.getElementById('ntp-settings-button');
@@ -64,6 +65,7 @@ const firefoxStyleInput = document.getElementById('opt-firefox-style');
 const recentCountInput = document.getElementById('opt-recent-count');
 const excludePrivilegedInput = document.getElementById('opt-exclude-privileged');
 const excludeWindowsInput = document.getElementById('opt-exclude-windows');
+const letterFaviconsInput = document.getElementById('opt-letter-favicons');
 const recentElement = document.getElementById('ntp-recent');
 const copyIconTemplate = document.getElementById('ntp-card-copy-icon');
 const hiddenKeys = new Set(readStoredArray(HIDDEN_SITES_KEY));
@@ -544,6 +546,18 @@ function setupSettings() {
       saveStoredFlag(EXCLUDE_WINDOWS_KEY, settings.excludeWindows);
       logEvent('settings:exclude-windows', { value: settings.excludeWindows });
       refreshRecentCards();
+    });
+  }
+
+  // Debug only: swaps every tile icon for its letter so the fallback can be
+  // eyeballed. Deliberately not stored - a reload starts from real icons.
+  if (letterFaviconsInput) {
+    letterFaviconsInput.addEventListener('change', () => {
+      document.body.classList.toggle(
+        LETTER_FAVICONS_CLASS,
+        letterFaviconsInput.checked,
+      );
+      logEvent('settings:letter-favicons', { value: letterFaviconsInput.checked });
     });
   }
 }
