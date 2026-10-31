@@ -977,6 +977,71 @@ async function chromeScenario(page, errors) {
         `after the switch: ${JSON.stringify(degraded)}`,
       );
 
+      const badges = await page.evaluate(`(() => {
+        const letters = [...document.querySelectorAll('#ntp-tiles .ntp-tile-letter')];
+        return letters.map((letter) => {
+          const box = letter.getBoundingClientRect();
+          const glyph = letter.querySelector('.ntp-tile-letter-glyph');
+          const rect = glyph.getBoundingClientRect();
+          const style = getComputedStyle(letter);
+          const glyphStyle = getComputedStyle(glyph);
+          const tilt = new DOMMatrix(glyphStyle.transform).b;
+          return {
+            background: style.backgroundColor,
+            color: style.color,
+            glyphColor: glyphStyle.color,
+            radius: Number.parseFloat(style.borderTopLeftRadius) / (style.borderTopLeftRadius.endsWith('%') ? 100 : 1),
+            width: box.width,
+            height: box.height,
+            tilt,
+            overspillX: rect.right - box.right,
+            overspillY: rect.bottom - box.bottom,
+            centreX: box.left + box.width / 2,
+            centreY: box.top + box.height / 2,
+            glyphCentreX: rect.left + rect.width / 2,
+            glyphCentreY: rect.top + rect.height / 2,
+            borderWidth: Number.parseFloat(style.borderTopWidth),
+          };
+        });
+      })()`);
+      assert(badges.length === 10, `letter badges: ${badges.length}`);
+      for (const badge of badges) {
+        assert(
+          badge.background !== 'rgba(0, 0, 0, 0)' && badge.background !== 'transparent',
+          `no fill: ${badge.background}`,
+        );
+        assert(
+          badge.color === badge.glyphColor,
+          `glyph colour drifts from its badge: ${badge.color} vs ${badge.glyphColor}`,
+        );
+        assert(badge.borderWidth === 0, `badge has an outline: ${badge.borderWidth}`);
+        assert(
+          Math.abs(badge.width - badge.height) < 1,
+          `badge is not square: ${badge.width}x${badge.height}`,
+        );
+        assert(
+          badge.radius > 0.05 && badge.radius < 0.5,
+          `badge corners are not a rounded rectangle: ${badge.radius}`,
+        );
+        assert(Math.abs(badge.tilt) > 0.05, `glyph is not tilted: ${badge.tilt}`);
+        assert(badge.overspillX > 0, `glyph never leaves the badge: ${badge.overspillX}`);
+        assert(badge.overspillY > 0, `glyph never leaves the badge: ${badge.overspillY}`);
+        assert(
+          badge.glyphCentreX > badge.centreX && badge.glyphCentreY > badge.centreY,
+          `glyph is not sitting in the lower right: ${badge.glyphCentreX},${badge.glyphCentreY} in ${badge.centreX},${badge.centreY}`,
+        );
+      }
+      assert(
+        new Set(badges.map((badge) => badge.background)).size > 3,
+        `the palette collapsed to one colour: ${badges[0].background}`,
+      );
+      assert(
+        new Set(badges.map((badge) => badge.color)).size === 2,
+        `text colours: ${[...new Set(badges.map((badge) => badge.color))].join(', ')}`,
+      );
+      await page.evaluate(`document.getElementById('ntp-settings').close()`);
+      await recordScreenshot(page, 'chrome', 'chrome-letter-icons.png');
+
       await toggle(false);
       const restored = await page.evaluate(readTiles);
       assert(

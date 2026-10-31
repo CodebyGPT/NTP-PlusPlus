@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
 
 import {
+  contrastRatio,
   isWebUrl,
+  LETTER_COLORS,
+  letterColors,
+  letterTextColor,
   normalizeHost,
   prepareTiles,
   rootOf,
@@ -63,5 +67,33 @@ assert.equal(normalizeHost('baike.baidu.com'), 'baike.baidu.com');
 assert.equal(rootOf('https://www.c.example/p?q=1'), 'https://www.c.example/');
 assert.equal(isWebUrl('https://example.com'), true);
 assert.equal(isWebUrl('file:///tmp/x'), false);
+
+assert.equal(letterTextColor('#ffffff'), '#14161a');
+assert.equal(letterTextColor('#000000'), '#ffffff');
+assert.ok(contrastRatio('#ffffff', '#000000') > 20);
+assert.ok(contrastRatio('#3366ff', '#3366ff') === 1);
+
+for (const background of LETTER_COLORS) {
+  const text = letterTextColor(background);
+  const other = text === '#ffffff' ? '#14161a' : '#ffffff';
+  assert.ok(
+    contrastRatio(background, text) >= contrastRatio(background, other),
+    `letter colour for ${background} is not the higher contrast one`,
+  );
+  assert.ok(
+    contrastRatio(background, text) >= 3,
+    `letter colour for ${background} is below large-text contrast`,
+  );
+}
+
+assert.deepEqual(letterColors('a.example'), letterColors('a.example'));
+assert.ok(LETTER_COLORS.includes(letterColors('a.example').background));
+assert.ok(
+  new Set(
+    Array.from({ length: 40 }, (_, index) =>
+      letterColors(`s${index}.example`).background,
+    ),
+  ).size > 3,
+);
 
 console.log('topsites checks passed');

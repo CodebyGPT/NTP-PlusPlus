@@ -10,6 +10,7 @@ import {
 import {
   hostOf,
   isWebUrl,
+  letterColors,
   normalizeHost,
   prepareTiles,
   TILE_COUNT,
@@ -350,10 +351,20 @@ function createTileElement(tile) {
     icon.append(image);
   }
 
+  // The generated letter is a filled badge with the glyph as its own node, so
+  // the glyph can lean and overspill without dragging the badge with it.
   const letter = document.createElement('span');
   letter.className = 'ntp-tile-letter';
   letter.dataset.tileLetter = '';
-  letter.textContent = tile.title.trim().charAt(0).toUpperCase() || '?';
+  const colors = letterColors(tile.key);
+  letter.style.backgroundColor = colors.background;
+  letter.style.color = colors.text;
+
+  const glyph = document.createElement('span');
+  glyph.className = 'ntp-tile-letter-glyph';
+  glyph.setAttribute('aria-hidden', 'true');
+  glyph.textContent = tile.title.trim().charAt(0).toUpperCase() || '?';
+  letter.append(glyph);
   icon.append(letter);
 
   const title = document.createElement('span');

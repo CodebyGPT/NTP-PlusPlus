@@ -161,6 +161,7 @@ test/
 - 纯函数 `src/topsites.js` 只处理列表：过滤非 http/https、跳过排除主机、跳过已隐藏 origin、按目标 URL 去重、截断到 10 条，便于 Node 直接测试。
 - 隐藏记录以 origin 为 key（`ntp-hidden-sites`），切换“只保留域名”不会让已删站点复活；删除后从溢出池补位。
 - Chromium 图标走 `runtime.getURL('/_favicon/')` + `pageUrl` + `size=64`（需要 `favicon` 权限）；Firefox 用 `topSites` 返回的 data URL。加载失败就移除 `img`，露出首字母。
+- 首字母瓦片图标：`.ntp-tile-letter` 是填满图标位的**圆角矩形徽章**（`--ntp-tile-letter-radius: 26%`，无描边），字母是它的子节点 `.ntp-tile-letter-glyph`，加粗、`rotate(-10deg)`、锚在右下（`--ntp-tile-letter-nudge: -5%`）并允许溢出一点，`transform-origin: 100% 100%` 让倾斜绕着右下角转，溢出量才可预测。配色在 `topsites.js`：`LETTER_COLORS` 是 16 色莫兰迪色板，`letterColors(key)` 用站点 key 做哈希取色（不是 `Math.random()`，否则每次重渲染都换色），文字色由 `letterTextColor()` 按 WCAG 相对亮度在黑/白里挑对比度更大的那个。`inset-block-end`/`inset-inline-end` 必须写纯百分比——`calc(长度 * 百分比)` 是非法 CSS，会被静默丢弃，字母就缩回左上角。
 - 左键当前标签页打开、右键原生菜单：瓦片就是普通 `<a href>`，不监听 `contextmenu`。
 - favicon 尺寸固定 `--ntp-tile-favicon-size: 1.6rem`（25.6px），两套风格共用。Chromium 的圆形底 `--ntp-tile-icon-size: 2.875rem`（46px）比 Firefox 方底的 2.5rem 大一圈，这样方角到圆边有约 5px 余量：正方形内切时角在 70.7% 处，46/2 - 25.6×0.707 ≈ 4.9px。
 - 两套风格共用同一套 DOM，只在 CSS 里分叉：`body.ntp-firefox-style` 改图标底圆角（`--ntp-firefox-tile-icon-radius: 8px`）、去掉瓦片底色、悬停时 `scale()` 图标并加 `--ntp-firefox-tile-icon-shadow` 阴影（默认无阴影，dark 下提高不透明度）、标题 `--ntp-tile-title-clamp: 2`；默认（无该类）是 Chromium 风格（圆形图标底 `--ntp-tile-icon-radius: 50%`、悬停出 `3px` 瓦片底、标题单行）。标题统一用 `-webkit-line-clamp` + `text-overflow: ellipsis`，只切 clamp 数字就切换行数。删除按钮固定在图标右上角，靠 CSS `:hover`/`:focus-within` 淡入淡出，不写 JS 悬停逻辑。
@@ -250,6 +251,7 @@ npm run build
 - [ ] 窗口卡片的复制按钮复制所有标签页（每行 `[标题](链接)`，不插空行）；点卡片能恢复整个窗口
 - [ ] “排除窗口”默认不勾选；勾上后窗口卡片立刻消失，刷新后保持
 - [ ] 调试开关勾上后所有瓦片图标立刻换成首字母，取消勾选恢复；刷新后回到真实图标（不持久化）
+- [ ] 首字母徽章是圆角矩形无描边，字号粗、逆时针倾斜、压在右下角并溢出一点；同一站点刷新后颜色不变，浅色底用深字、深色底用白字
 - [ ] 窄窗口下瓦片加卡片仍无滚动条、卡片区不被压扁成 0 高
 - [ ] `npm test` 与 `npm run build` 通过；`test/headless/run.mjs` 全绿，实际渲染与预期一致
 - [ ] 重大修改是逐项验证过的，不是在未验证的改动上继续叠加
