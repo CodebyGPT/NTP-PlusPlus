@@ -1877,7 +1877,17 @@ async function cardsScenario(page, errors) {
     return restored;
   });
 
-  await check('cards', 'hovering a lower card slides the ones above away', async () => {
+  await check('cards', 'the pushed cards keep a peek at the bottom edge', async () => {
+    const geometry = `(() => {
+      const cards = [...document.querySelectorAll('.ntp-card')];
+      const bar = cards[2].querySelector('.ntp-card-bar');
+      return {
+        tops: cards.map((card) => Math.round(card.getBoundingClientRect().top)),
+        barHeight: Math.round(bar.getBoundingClientRect().height),
+        innerHeight: window.innerHeight,
+        stageTop: Math.round(document.getElementById('ntp-recent').getBoundingClientRect().top),
+      };
+    })()`;
     const point = await page.evaluate(`(() => {
       const card = document.querySelectorAll('.ntp-card')[1];
       const rect = card.getBoundingClientRect();
@@ -1892,16 +1902,23 @@ async function cardsScenario(page, errors) {
     );
     await sleep(700);
 
-    const transforms = await page.evaluate(
-      `[...document.querySelectorAll('.ntp-card')].map((card) => getComputedStyle(card).transform)`,
-    );
-    const offsets = transforms.map(translateY);
-
+    const hovered = await page.evaluate(geometry);
     assert(
-      offsets[2] > 100,
-      `card above did not move: ${transforms[2]} at ${point.x},${point.y}`,
+      hovered.tops[2] > hovered.stageTop + 100,
+      `the card above did not drop: ${hovered.tops[2]} vs stage top ${hovered.stageTop}`,
     );
-    assert(offsets[0] < 0 && offsets[1] < 0, `stack offsets lost: ${offsets.join(',')}`);
+    // 1.5 bar heights stay on screen, so the bar and a sliver of the snapshot
+    // can still be pointed at.
+    const peek = hovered.innerHeight - hovered.tops[2];
+    assert(
+      Math.abs(peek - 1.5 * hovered.barHeight) < 6,
+      `peek is ${peek}px, want ${(1.5 * hovered.barHeight).toFixed(0)}px of a ${hovered.barHeight}px bar`,
+    );
+    // The stack's own spacing is untouched.
+    assert(
+      Math.abs(hovered.tops[0] - hovered.tops[1]) > 40,
+      `stack offsets lost: tops ${hovered.tops.join(',')}`,
+    );
 
     await recordScreenshot(page, 'cards', 'chrome-cards-hover.png');
 
@@ -1911,11 +1928,12 @@ async function cardsScenario(page, errors) {
       page.sessionId,
     );
     await sleep(700);
-    const reset = await page.evaluate(
-      `getComputedStyle(document.querySelectorAll('.ntp-card')[2]).transform`,
+    const reset = await page.evaluate(geometry);
+    assert(
+      Math.abs(reset.tops[2] - hovered.stageTop) < 2,
+      `card did not go back: ${reset.tops[2]} vs ${hovered.stageTop}`,
     );
-    assert(Math.abs(translateY(reset)) < 1, `card did not slide back: ${reset}`);
-    return `slid ${Math.round(offsets[2])}px down`;
+    return `peek ${peek}px of ${hovered.barHeight}px bar`;
   });
 
   await check('cards', 'character limit follows the title bar width', async () => {

@@ -163,7 +163,7 @@ test/
 - 卡片顺序：DOM 顺序是“最旧 → 最新”，靠绘制顺序让最新的在最上层（`z-index` 不用手写，定位元素本身按文档顺序绘制）。每张卡片用内联 `--ntp-card-index` 向上抬 `index × --ntp-card-step`，`--ntp-card-step` = 1.5 倍标题栏高度，所以没被悬停的卡片也露出标题栏加半条标题栏的快照；`#ntp-recent` 的 `margin-block-start` 预留这段被抬上去的高度。
 - 最上层卡片越出视口：`#ntp-recent` 用负的 `margin-block-end: calc(-1 × --ntp-card-overhang)` 把舞台向下撑出去，卡片顶部锚定在舞台顶边（`inset-block-start: 0`），底边按比例向下长，于是被视口下边缘切掉一截，看起来是“压在下边缘上”。窗口越矮，切掉的部分越多——这是设计，不要靠压缩卡片去消除它。
 - 卡片尺寸：卡片宽度永远是舞台宽度的 100%，高度由屏幕比例（`--ntp-card-aspect`，由 `applyCardAspect()` 从 `window.screen` 写进 `:root`，取不到就退回 `16 / 9`）算出来，所以卡片总是左右铺满、纵向顺着比例长到哪算哪。这里只有一条规则：比例不变形。窗口太矮时卡片会越出视口下边缘（这个可以接受），**不能**为了塞进视口去压扁或缩小它——任何单独 clamp 一条边的 `min-*` / `max-*` 都会破坏比例，`min-inline-size` 加 `max-block-size` 的组合就是把卡片变成条形的元凶。`box-sizing: border-box` 必须写，否则比舞台宽 2px。舞台顶部那段 `margin-block-start`（= 抬起来的卡片占的高度）由被抬起的卡片自己填满，不要拿它去减卡片高度，否则瓦片和卡片之间会空出一条。
-- 悬停露出：纯 CSS，`.ntp-card:hover ~ .ntp-card` 把叠在上面的卡片 `translateY(--ntp-card-exit-distance)` 移出视口（`scale()` 原样保留，否则滑走的卡片会突然变大），过渡用 Material 3 Expressive 的 “default spatial” 曲线 `cubic-bezier(0.38, 1.21, 0.22, 1)` / 500ms（`--ntp-card-ease` / `--ntp-card-transition`，曲线会过冲到 1 以上再回落，就是那点阻尼感）。同时给这些卡片 `pointer-events: none`：滑走的卡片会经过光标下方，否则 hover 目标跳到它身上，状态在两个元素之间来回抖动。
+- 悬停露出：纯 CSS，`.ntp-card:hover ~ .ntp-card` 把叠在上面（后绘制、盖住它）的卡片往下推，但**不推出视口**：落点由 `inset-block-start: calc(100% - var(--ntp-card-overhang) - var(--ntp-card-peek))` 决定，`100%` 是舞台高度，所以每张被推下去的卡片都正好在视口底边上方留 1.5 倍标题栏高度（`--ntp-card-peek` = 标题栏 + 半条标题栏的快照）在屏幕里，光标可以横移过去继续挑别的卡片；被推下去的卡片不设 `pointer-events: none`，它们停在光标下方不会挡住指针，可以直接悬停/点击。位移用 `inset-block-start` 而不是改 `transform`：`transform` 正被卡片自己的堆叠位移（`--ntp-card-index`）占用，混在一起会丢掉栈间距；另外 `inset-block-start` 的百分比相对舞台高度，才能把落点钉在离视口底边固定距离的地方，而不是“每张卡片各往下走自己的一身半”。过渡用 Material 3 Expressive 的 “default spatial” 曲线 `cubic-bezier(0.38, 1.21, 0.22, 1)` / 500ms（`--ntp-card-ease` / `--ntp-card-transition`，曲线会过冲到 1 以上再回落，就是那点阻尼感）。
 - 恢复：整张卡片（标题栏 + 快照）是一个 `<a>`，`click` 时 `preventDefault()` 再 `sessions.restore(sessionId)`；恢复失败（会话已被清理）就退回到 `location.href = url`，仍然能打开这个页面。
 - 复制链接按钮是那个 `<a>` 的**兄弟节点**（绝对定位到标题栏右侧），不能嵌在 `<a>` 里——`<a>` 内嵌 `<button>` 是非法结构。图标直接取 `Doc/IconPark-master` 里的 `Edit/copy.svg`（Apache-2.0），去掉 `xmlns` 放进 `newtab.html` 的 `<template id="ntp-card-copy-icon">`：HTML 解析器会自动把它放进 SVG 命名空间，于是 JS 里不需要 `createElementNS` 和 `http://www.w3.org/2000/svg` 这个会被构建规则拦掉的字符串，克隆模板即可。`fill: none` + `stroke: currentcolor` 让它跟随按钮颜色。按下时除了变深还有 `:active` 的 `scale(--ntp-card-copy-active-scale)`，并且把 `transition-duration` 压到 `0ms`，保证按下是即时的、松开才走过渡。指针点击后要 `blur()`（`event.detail > 0` 时）——否则按钮一直持焦点，`.ntp-card:focus-within ~ .ntp-card` 会让卡片组一直保持展开，鼠标移开也不收起；键盘用户保留焦点才能继续 Tab。
 - 没有快照时（标签页还没机会被截到）快照区居中显示站点 favicon，尺寸 `--ntp-card-placeholder-size`（2.5rem）比标题栏里的大一圈，但远小于卡片：占位图**不能**铺满快照区，`object-fit: contain` 保持图标比例，`opacity: 0.55` 让它退到背景。注意快照图片的 `inline-size: 100%` 规则必须写成 `.ntp-card-snapshot img:not(.ntp-card-placeholder)`，否则同属性选择器的特异度会压过占位图尺寸，把它拉满整张卡片。Chromium 走 `/_favicon/`；Firefox 的 `sessions` 不带内联图标，而 `favIconUrl` 是远程地址（违反“不加载远程图片”），所以退化成站点首字母。
@@ -211,7 +211,7 @@ npm run build
 - [ ] Firefox 下删除瓦片后由溢出站点补位，刷新后仍隐藏
 - [ ] 设置弹窗即时生效，点背景和关闭按钮都能关闭
 - [ ] 瓦片在上方、最近关闭卡片在下方层叠：最新的卡片最大且被视口下边缘切掉一截，往回依次缩小，未选中的卡片露出标题栏 + 半条标题栏的快照
-- [ ] 悬停第二/第三张卡片时，压在它上面的卡片带缓动滑出视口（M3 Expressive 阻尼曲线），光标指的那张完整露出（含快照）
+- [ ] 悬停第二/第三张卡片时，压在它上面的卡片带缓动往下推、只在视口底边留 1.5 倍标题栏高度（M3 Expressive 阻尼曲线），光标指的那张完整露出（含快照）；把光标横移过去能直接悬停那些露头的卡片
 - [ ] 瓦片下方到视口底边全被卡片占满，瓦片和卡片之间没有空带；卡片宽度跟着窗口横向拉伸等比缩放，竖向拉伸只改变露出多少、不改变卡片尺寸；卡片长宽比始终等于屏幕长宽比，窗口拉得再扁也不变形（宁可越出视口）
 - [ ] 标题与链接共用同一个字符数上限，窗口变窄时不刷新页面也会收得更紧
 - [ ] 点卡片恢复被关闭的标签页；点复制按钮只复制链接、不触发恢复

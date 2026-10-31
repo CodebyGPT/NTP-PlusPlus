@@ -72,9 +72,9 @@
      damping you feel as the card lands. Paired duration is the token's 500ms. */
   --ntp-card-ease: cubic-bezier(0.38, 1.21, 0.22, 1);
   --ntp-card-transition: 500ms;
-  --ntp-card-exit-distance: calc(
-    100% + var(--ntp-page-padding) + var(--ntp-card-bar-block-size)
-  );
+  /* How much of a pushed-down card stays on screen: its bar plus a sliver of
+     snapshot, so it can still be pointed at and picked. */
+  --ntp-card-peek: calc(var(--ntp-card-bar-block-size) * 1.5);
 
   /* Firefox-style tiles: square-ish icon backing, no tile background. */
   --ntp-firefox-tile-icon-radius: 8px;
@@ -495,17 +495,21 @@ body.ntp-firefox-style .ntp-tile-link:focus-visible .ntp-tile-icon {
   transform-origin: 50% 0;
   transform: translateY(calc(var(--ntp-card-index, 0) * var(--ntp-card-step) * -1))
     scale(calc(1 - var(--ntp-card-index, 0) * var(--ntp-card-scale-step)));
-  transition: transform var(--ntp-card-transition) var(--ntp-card-ease);
+  transition:
+    inset-block-start var(--ntp-card-transition) var(--ntp-card-ease),
+    transform var(--ntp-card-transition) var(--ntp-card-ease);
 }
 
-/* Cards above the hovered one slide out from under it. They have to drop
-   pointer events on the way, or one of them lands under the cursor and the
-   hover state flickers between the two. */
+/* Cards above the hovered one drop down until only a peek of each is left at
+   the bottom edge, instead of leaving the screen entirely: the bars stay
+   visible, so the pointer can travel over to another card and pick it.
+   `inset-block-start` resolves against the stage height, which is what puts the
+   landing spot a fixed distance above the viewport bottom rather than a fixed
+   distance below each card. The stack's own lift (the transform) is untouched,
+   so the pushed cards keep their 1.5-bar spacing. */
 .ntp-card:hover ~ .ntp-card,
 .ntp-card:focus-within ~ .ntp-card {
-  pointer-events: none;
-  transform: translateY(var(--ntp-card-exit-distance))
-    scale(calc(1 - var(--ntp-card-index, 0) * var(--ntp-card-scale-step)));
+  inset-block-start: calc(100% - var(--ntp-card-overhang) - var(--ntp-card-peek));
 }
 
 .ntp-card-open {
