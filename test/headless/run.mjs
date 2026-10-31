@@ -288,9 +288,9 @@ function buildChromePreload() {
 // Recently closed cards. A separate preload keeps the tile and layout
 // scenarios on an empty sessions list, so their assertions stay unchanged.
 const CARD_LONG_TITLE =
-  'A deliberately long headline that cannot possibly fit in a title bar and must be folded away';
+  'A deliberately long headline that cannot possibly fit in a title bar no matter how wide the window gets and must therefore be folded away with an ellipsis before it reaches the copy button';
 const CARD_LONG_URL =
-  'https://alpha.example.com/a/very/long/path/that/does/not/fit/in/the/title/bar/either';
+  'https://alpha.example.com/a/very/long/path/that/does/not/fit/in/the/title/bar/either/nor/in/a/wider/one/because/it/keeps/going/with/more?and=more&query=parameters#and-a-fragment';
 const CARD_SNAPSHOT =
   'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
 
@@ -1609,23 +1609,22 @@ const cardGeometry = `(() => {
 })()`;
 
 function assertCardFillsStage(info) {
-  const expectedWidth = Math.min(
-    info.stageWidth,
-    info.stageHeight * info.screenRatio,
-  );
-  const expectedHeight = expectedWidth / info.screenRatio;
+  // The card is exactly as wide as its stage, and as tall as the display ratio
+  // makes it. Height is never clamped to the viewport: a short window lets the
+  // card run off the bottom edge rather than squash it.
   assert(
-    Math.abs(info.width - expectedWidth) < 2,
-    `card is ${info.width}px wide, expected ${expectedWidth.toFixed(1)} (stage ${info.stageWidth}x${info.stageHeight}px)`,
+    Math.abs(info.width - info.stageWidth) < 2,
+    `card is ${info.width}px wide, expected the full stage width ${info.stageWidth}px`,
   );
+  const ratio = info.width / info.height;
   assert(
-    Math.abs(info.height - expectedHeight) < 2,
-    `card is ${info.height}px tall, expected ${expectedHeight.toFixed(1)} at ratio ${info.screenRatio.toFixed(2)}`,
+    Math.abs(ratio - info.screenRatio) < 0.02,
+    `card ratio ${ratio.toFixed(3)} vs screen ${info.screenRatio.toFixed(3)} (${info.width}x${info.height})`,
   );
-  // Bottom-anchored: no gap under the group.
+  // Nothing may shrink the card to fit vertically.
   assert(
-    Math.abs(info.bottom - info.stageBottom) < 2,
-    `card bottom ${info.bottom} vs stage bottom ${info.stageBottom}`,
+    Math.abs(info.height - info.width / info.screenRatio) < 2,
+    `card is ${info.height}px tall, expected ${(info.width / info.screenRatio).toFixed(1)} at ratio ${info.screenRatio.toFixed(2)}`,
   );
   // The lifted cards fill the room the stage's top margin reserved for them,
   // so there is no blank band between the tiles and the stack.
@@ -1927,36 +1926,47 @@ async function cardsScenario(page, errors) {
     return summary;
   });
 
-  await check('cards', 'a short window keeps a readable minimum width', async () => {
+  await check('cards', 'a flat window keeps the ratio instead of squashing the cards', async () => {
     await setViewport(page, 1200, 400);
     await sleep(500);
     const info = await page.evaluate(`(() => {
       const card = document.querySelectorAll('.ntp-card')[2];
+      const rect = card.getBoundingClientRect();
       const stage = document.getElementById('ntp-recent');
       return {
-        width: Math.round(card.getBoundingClientRect().width),
+        width: Math.round(rect.width),
+        height: Math.round(rect.height),
+        bottom: Math.round(rect.bottom),
         stageWidth: Math.round(stage.getBoundingClientRect().width),
+        stageHeight: Math.round(stage.getBoundingClientRect().height),
+        screenRatio: window.screen.width / window.screen.height,
         scrollWidth: document.documentElement.scrollWidth,
         innerWidth: window.innerWidth,
+        innerHeight: window.innerHeight,
       };
     })()`);
     await setViewport(page, CARD_VIEWPORT_WIDTH, CARD_VIEWPORT_HEIGHT);
     await sleep(500);
 
+    const ratio = info.width / info.height;
     assert(
-      info.stageWidth > 400,
-      `stage is only ${info.stageWidth}px wide, the floor should not be capped by it`,
+      info.stageHeight < info.stageWidth / info.screenRatio,
+      `this window is not flat enough to test: stage ${info.stageWidth}x${info.stageHeight}`,
     );
-    // --ntp-card-min-inline is 20rem, i.e. 320px at the default font size.
+    // The card keeps its shape and overflows the short viewport instead.
     assert(
-      Math.abs(info.width - 320) < 2,
-      `card is ${info.width}px wide in a short window, expected the 320px floor`,
+      Math.abs(ratio - info.screenRatio) < 0.02,
+      `flat window squashed the card: ${info.width}x${info.height} (ratio ${ratio.toFixed(3)}, want ${info.screenRatio.toFixed(3)})`,
+    );
+    assert(
+      info.bottom > info.innerHeight,
+      `the card should run off the bottom edge: bottom ${info.bottom} vs viewport ${info.innerHeight}`,
     );
     assert(
       info.scrollWidth <= info.innerWidth,
-      `the floor overflowed: ${info.scrollWidth} in ${info.innerWidth}`,
+      `the card overflowed sideways: ${info.scrollWidth} in ${info.innerWidth}`,
     );
-    return `${info.width}px floor in a ${info.stageWidth}px stage`;
+    return `${info.width}x${info.height} at ratio ${info.screenRatio.toFixed(2)}, bottom ${info.bottom} past ${info.innerHeight}`;
   });
 
   await check('cards', 'settings limit defaults to 3 and applies 1', async () => {

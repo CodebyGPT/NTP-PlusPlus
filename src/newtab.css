@@ -42,7 +42,6 @@
   /* Recently closed cards: a stack of progressively smaller cards, each
      exposing a title bar plus a sliver of snapshot. */
   --ntp-main-gap: clamp(1rem, 3vh, 2.5rem);
-  --ntp-card-min-inline: 20rem;
   --ntp-card-radius: 10px;
   --ntp-card-bg: #ffffff;
   --ntp-card-border: rgb(0 0 0 / 12%);
@@ -470,24 +469,17 @@ body.ntp-firefox-style .ntp-tile-link:focus-visible .ntp-tile-icon {
   margin-block-end: calc(var(--ntp-card-overhang) * -1);
 }
 
-/* The card box is sized by script at the display aspect ratio: it fills the
-   stage when the stage is wider than the ratio allows, and shrinks to the
-   height when it is not. Bottom-anchored and centered, so the group sits on
-   the bottom edge and grows upwards without leaving a gap above. */
+/* The card is as wide as the stage and as tall as the display ratio makes it.
+   Nothing clamps a side on its own, so the ratio holds at any window shape; a
+   window too short simply lets the card run past the bottom edge instead of
+   squashing it. */
 .ntp-card {
   position: absolute;
-  inset-block-end: 0;
+  inset-block-start: 0;
   inset-inline: 0;
-  /* Definite width, derived height: with an auto width the ratio would be
-     transferred the other way and a height cap would shrink the card. */
   box-sizing: border-box;
-  inline-size: var(--ntp-card-inline, 100%);
-  /* A short window would shrink the card to a strip; the floor keeps it
-     readable. min() with the stage keeps it from overflowing sideways. */
-  min-inline-size: min(var(--ntp-card-min-inline), 100%);
-  margin-inline: auto;
+  inline-size: 100%;
   block-size: auto;
-  max-block-size: 100%;
   aspect-ratio: var(--ntp-card-aspect, 16 / 9);
   overflow: hidden;
   border: 1px solid var(--ntp-card-border);

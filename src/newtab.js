@@ -39,8 +39,6 @@ const CHAR_SAMPLE = 'mnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
 const CHAR_SAMPLE_REPEAT = 2;
 // Cards keep the display's own aspect ratio so a wide screen gets wide cards.
 const CARD_ASPECT_PROPERTY = '--ntp-card-aspect';
-const CARD_INLINE_PROPERTY = '--ntp-card-inline';
-const CARD_ASPECT_FALLBACK = 16 / 9;
 // CSS swaps the two tile styles off this class; Chromium is the default so an
 // unknown browser falls back to it.
 const FIREFOX_STYLE_CLASS = 'ntp-firefox-style';
@@ -657,7 +655,6 @@ function renderRecentCards() {
       .reverse()
       .map((card, index) => createCardElement(card, total - 1 - index)),
   );
-  sizeCardStage();
   applyCardText();
 }
 
@@ -692,44 +689,19 @@ async function refreshRecentCards() {
   });
 }
 
-// The cards fill the stage at the display's aspect ratio: the group grows until
-// either the stage width or its usable height runs out, so it is as large as
-// the space allows without ever leaving a gap. Screen size never changes
-// mid-session on desktop, so the ratio is read once per sizing pass.
-function cardAspectRatio() {
+// The cards keep the display's aspect ratio however the window is shaped. A
+// window too short lets them run past the bottom edge instead of squashing
+// them: the ratio is a hard rule, the fit is not. Screen size never changes
+// mid-session on desktop, so the ratio is read once per render.
+function applyCardAspect() {
   const width = window.screen?.width;
   const height = window.screen?.height;
   if (!(width > 0) || !(height > 0)) {
-    return CARD_ASPECT_FALLBACK;
+    return;
   }
   document.documentElement.style.setProperty(
     CARD_ASPECT_PROPERTY,
     `${width} / ${height}`,
-  );
-  return width / height;
-}
-
-function sizeCardStage() {
-  if (!recentElement) {
-    return;
-  }
-
-  const width = recentElement.clientWidth;
-  // The stage's top margin is the room the lifted cards take above the newest
-  // one, so the card itself may use the whole stage height: the stack then
-  // spans margin + stage without leaving a gap under the tiles.
-  const usable = recentElement.clientHeight;
-  if (!(width > 0) || !(usable > 0)) {
-    // Nothing to fill (window too short): drop the stale size so the card can
-    // fall back to the stage width and be capped by max-block-size instead.
-    recentElement.style.removeProperty(CARD_INLINE_PROPERTY);
-    return;
-  }
-
-  const inlineSize = Math.min(width, usable * cardAspectRatio());
-  recentElement.style.setProperty(
-    CARD_INLINE_PROPERTY,
-    `${Math.max(1, Math.floor(inlineSize))}px`,
   );
 }
 
@@ -738,15 +710,15 @@ function setupRecentCards() {
     return;
   }
 
-  // resize is an event, not a poll: the card box and the character limit only
-  // need revisiting when the stage actually changes size.
+  // resize is an event, not a poll: the character limit only needs revisiting
+  // when the stage actually changes width.
   if (typeof ResizeObserver === 'function') {
     new ResizeObserver(() => {
-      sizeCardStage();
       applyCardText();
     }).observe(recentElement);
   }
 
+  applyCardAspect();
   refreshRecentCards();
 }
 
