@@ -68,6 +68,10 @@
   --ntp-card-copy-active-scale: 0.9;
   --ntp-card-copy-glyph-size: 0.6875rem;
   --ntp-card-placeholder-size: 2.5rem;
+  /* Closed tabs fade out: the nearest snapshot keeps 60% of its color, the
+     furthest drops to 10%, everything between is interpolated by depth. */
+  --ntp-card-saturation-max: 0.6;
+  --ntp-card-saturation-min: 0.1;
   /* Material 3 Expressive "default spatial" curve: the overshoot past 1 is the
      damping you feel as the card lands. Paired duration is the token's 500ms. */
   --ntp-card-ease: cubic-bezier(0.38, 1.21, 0.22, 1);
@@ -621,6 +625,18 @@ body.ntp-firefox-style .ntp-tile-link:focus-visible .ntp-tile-icon {
   min-block-size: 0;
   overflow: hidden;
   background-color: var(--ntp-card-snapshot-bg);
+  /* Depth 0 is the newest card, so a lone card keeps the full 60%. max() keeps
+     a single card from dividing by zero and falling back to no filter at all. */
+  filter: saturate(
+    calc(
+      var(--ntp-card-saturation-max) -
+        (var(--ntp-card-saturation-max) - var(--ntp-card-saturation-min)) *
+        (
+          var(--ntp-card-index, 0) /
+            max(1, var(--ntp-card-count, 1) - 1)
+        )
+    )
+  );
 }
 
 /* No snapshot yet (tab never got the chance to be captured): center the favicon.

@@ -168,6 +168,7 @@ test/
 - 复制链接按钮是那个 `<a>` 的**兄弟节点**（绝对定位到标题栏右侧），不能嵌在 `<a>` 里——`<a>` 内嵌 `<button>` 是非法结构。图标直接取 `Doc/IconPark-master` 里的 `Edit/copy.svg`（Apache-2.0），去掉 `xmlns` 放进 `newtab.html` 的 `<template id="ntp-card-copy-icon">`：HTML 解析器会自动把它放进 SVG 命名空间，于是 JS 里不需要 `createElementNS` 和 `http://www.w3.org/2000/svg` 这个会被构建规则拦掉的字符串，克隆模板即可。`fill: none` + `stroke: currentcolor` 让它跟随按钮颜色。按下时除了变深还有 `:active` 的 `scale(--ntp-card-copy-active-scale)`，并且把 `transition-duration` 压到 `0ms`，保证按下是即时的、松开才走过渡。指针点击后要 `blur()`（`event.detail > 0` 时）——否则按钮一直持焦点，`.ntp-card:focus-within ~ .ntp-card` 会让卡片组一直保持展开，鼠标移开也不收起；键盘用户保留焦点才能继续 Tab。
 - 没有快照时（标签页还没机会被截到）快照区居中显示站点 favicon，尺寸 `--ntp-card-placeholder-size`（2.5rem）比标题栏里的大一圈，但远小于卡片：占位图**不能**铺满快照区，`object-fit: contain` 保持图标比例，`opacity: 0.55` 让它退到背景。注意快照图片的 `inline-size: 100%` 规则必须写成 `.ntp-card-snapshot img:not(.ntp-card-placeholder)`，否则同属性选择器的特异度会压过占位图尺寸，把它拉满整张卡片。Chromium 走 `/_favicon/`；Firefox 的 `sessions` 不带内联图标，而 `favIconUrl` 是远程地址（违反“不加载远程图片”），所以退化成站点首字母。
 - 字符数上限：`ResizeObserver`（事件驱动，只在宽度真的变化时触发）监听 `#ntp-recent` 宽度 → 一次布局读 `label.clientWidth`（已扣掉复制按钮让出的位置）→ 隐藏的 `.ntp-card-measure` 量平均字符宽 → `charLimitForWidth()` 得到单侧上限 → 标题和地址各自 `limitLabel()`。CSS 的 `text-overflow: ellipsis` 只是兜底，覆盖“resize 到下一次测量之间”的那一帧。上限不硬编码，宽窄窗口各自算出合适的值。
+- 快照褪色：快照区按卡片深度降饱和，暗示“已关掉”。上限 `--ntp-card-saturation-max: 0.6`、下限 `--ntp-card-saturation-min: 0.1`，中间值由 CSS 按深度插值（`saturate(calc(max - (max - min) * index / max(1, count - 1)))`），所以 3 张时是 60% / 35% / 10%，1 张时只有深度 0、落在上限 60%。中间档不写死：加减一张卡片，插值自己就变了。`max(1, …)` 防止单张卡片除零让整个 `calc()` 失效（失效就完全没有滤镜）。
 - 快照：`background.js` 在标签页变为可见（`tabs.onActivated`、`tabs.onUpdated` 到 `complete`、`windows.onFocusChanged`）时调用 `tabs.captureVisibleTab`，只截当前可见页——已关闭的标签页事后无法补截，所以必须预热。>720p 才用 `createImageBitmap` + `OffscreenCanvas` 缩到 1280×720，任何失败都静默回退原图。
 - 快照槽位：`storage.session`（浏览器只放内存、不落盘、关闭即清空）里维护两个数组：打开中的标签页（按 `tabId` 去重，上限 8 条）和已关闭的环形槽（上限 3 条，按 `url` 去重后覆盖最旧的）。`tabs.onRemoved` 把开着的条目挪进环形槽，槽位满就自然挤掉最旧的，不需要任何定期清理逻辑，因此不存在“异常没清掉导致内存膨胀”。Firefox < 115 没有 `storage.session`，回退成 worker 内的普通对象。
 - 新标签页通过 `runtime.sendMessage({ type: 'ntp:snapshots' })` 取快照，按 `url` 与会话列表配对；同一个 `url` 的多个会话只消费一份快照。
@@ -215,6 +216,7 @@ npm run build
 - [ ] 瓦片下方到视口底边全被卡片占满，瓦片和卡片之间没有空带；卡片宽度跟着窗口横向拉伸等比缩放，竖向拉伸只改变露出多少、不改变卡片尺寸；卡片长宽比始终等于屏幕长宽比，窗口拉得再扁也不变形（宁可越出视口）
 - [ ] 标题与链接共用同一个字符数上限，窗口变窄时不刷新页面也会收得更紧
 - [ ] 点卡片恢复被关闭的标签页；点复制按钮只复制链接、不触发恢复
+- [ ] 快照按深度褪色：3 张时 60% / 35% / 10%，只显示 1 张时是 60%
 - [ ] 没有快照的卡片在快照区居中显示 favicon（Firefox 显示首字母），不是一片空白，也没有被拉满整张卡片
 - [ ] 快照只在内存里（重启浏览器后为空），超 720p 的已压到 720p
 - [ ] 设置里改“最近关闭卡片最大显示数”立即生效，刷新后仍保持

@@ -2042,6 +2042,32 @@ async function cardsScenario(page, errors) {
     return `${info.width}x${info.height} at ratio ${info.screenRatio.toFixed(2)}, bottom ${info.bottom} past ${info.innerHeight}`;
   });
 
+  await check('cards', 'snapshots fade out with depth', async () => {
+    const ratios = JSON.parse(
+      await page.evaluate(`JSON.stringify(
+        [...document.querySelectorAll('.ntp-card-snapshot')].map((node) => {
+          const match = getComputedStyle(node).filter.match(/saturate\\(([\\d.]+)\\)/);
+          return match ? Number(match[1]) : null;
+        }),
+      )`),
+    );
+    assert(ratios.length === 3, `expected 3 snapshots, got ${ratios.length}`);
+    const [furthest, middle, nearest] = ratios;
+    assert(
+      Math.abs(nearest - 0.6) < 0.01,
+      `nearest should keep 60%: ${nearest}`,
+    );
+    assert(
+      Math.abs(middle - 0.35) < 0.01,
+      `middle should sit halfway: ${middle}`,
+    );
+    assert(
+      Math.abs(furthest - 0.1) < 0.01,
+      `furthest should drop to 10%: ${furthest}`,
+    );
+    return ratios.map((ratio) => ratio.toFixed(2)).join(' / ');
+  });
+
   await check('cards', 'settings limit defaults to 3 and applies 1', async () => {
     const value = await page.evaluate(
       `document.getElementById('opt-recent-count').value`,
@@ -2056,7 +2082,14 @@ async function cardsScenario(page, errors) {
       timeout: 3000,
       label: 'one card',
     });
-    return '1 card after change';
+    const alone = await page.evaluate(
+      `(getComputedStyle(document.querySelector('.ntp-card-snapshot')).filter.match(/saturate\\(([\\d.]+)\\)/) || [])[1] || ''`,
+    );
+    assert(
+      Math.abs(Number(alone) - 0.6) < 0.01,
+      `a lone card should keep the 60% cap: ${alone}`,
+    );
+    return `1 card after change, saturate ${alone}`;
   });
 
   await check('cards', 'no uncaught page errors', async () => {
