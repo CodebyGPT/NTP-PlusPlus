@@ -37,6 +37,8 @@ const SNAPSHOT_MESSAGE = 'ntp:snapshots';
 // sample keeps the computed limit from jumping on every resize step.
 const CHAR_SAMPLE = 'mnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
 const CHAR_SAMPLE_REPEAT = 2;
+// Cards keep the display's own aspect ratio so a wide screen gets wide cards.
+const CARD_ASPECT_PROPERTY = '--ntp-card-aspect';
 // CSS swaps the two tile styles off this class; Chromium is the default so an
 // unknown browser falls back to it.
 const FIREFOX_STYLE_CLASS = 'ntp-firefox-style';
@@ -687,10 +689,27 @@ async function refreshRecentCards() {
   });
 }
 
+// The card box is locked to the display's aspect ratio: width follows the
+// window, height follows the width, so dragging the window taller or shorter
+// leaves the cards alone. Screen size never changes mid-session on desktop.
+function applyCardAspect() {
+  const width = window.screen?.width;
+  const height = window.screen?.height;
+  if (!(width > 0) || !(height > 0)) {
+    return;
+  }
+  document.documentElement.style.setProperty(
+    CARD_ASPECT_PROPERTY,
+    `${width} / ${height}`,
+  );
+}
+
 function setupRecentCards() {
   if (!recentElement) {
     return;
   }
+
+  applyCardAspect();
 
   // resize is an event, not a poll: the character limit only needs revisiting
   // when the title bar width actually changes.

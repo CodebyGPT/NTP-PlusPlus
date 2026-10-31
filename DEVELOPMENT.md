@@ -161,8 +161,9 @@ test/
 - 布局：`main` 是纵向 flex，瓦片固定在上方，`#ntp-recent` 吃掉剩余高度。不再垂直居中，卡片再高也不会把瓦片顶出视口。`main` 用 `overflow: clip`（不是 `hidden`）：卡片会越出下边缘，但 `clip` 不产生可滚动区域，页面始终保持正好一屏、没有滚动条；body 的 `padding-block-end` 也归零，让最上层卡片直接切在视口底边上。
 - 卡片层级（视觉）：最新的卡片最大，往回依次等比缩小 `--ntp-card-scale-step`（`transform: scale()`，原点在 `50% 0` 顶部居中，所以缩小时顶端位置不动、只往下收），横向也一起变窄，成塔状。
 - 卡片顺序：DOM 顺序是“最旧 → 最新”，靠绘制顺序让最新的在最上层（`z-index` 不用手写，定位元素本身按文档顺序绘制）。每张卡片用内联 `--ntp-card-index` 向上抬 `index × --ntp-card-step`，`--ntp-card-step` = 1.5 倍标题栏高度，所以没被悬停的卡片也露出标题栏加半条标题栏的快照；`#ntp-recent` 的 `margin-block-start` 预留这段被抬上去的高度。
-- 最上层卡片越出视口：`#ntp-recent` 用负的 `margin-block-end: calc(-1 × --ntp-card-overhang)` 把舞台向下撑出去，卡片本身仍是 `block-size: 100%`，于是底边被视口切掉一截，看起来是“压在下边缘上”。
-- 悬停露出：纯 CSS，`.ntp-card:hover ~ .ntp-card` 把叠在上面的卡片 `translateY(--ntp-card-exit-distance)` 移出视口（`scale()` 原样保留，否则滑走的卡片会突然变大），`--ntp-card-ease` 用 `cubic-bezier(0.22, 1, 0.36, 1)`（缓出，避免线性平移的生硬感）。同时给这些卡片 `pointer-events: none`：滑走的卡片会经过光标下方，否则 hover 目标跳到它身上，状态在两个元素之间来回抖动。
+- 最上层卡片越出视口：`#ntp-recent` 用负的 `margin-block-end: calc(-1 × --ntp-card-overhang)` 把舞台向下撑出去，卡片底部锚定在舞台底边（`inset-block-end: 0`），于是底边被视口切掉一截，看起来是“压在下边缘上”。
+- 卡片尺寸锁定屏幕比例：每张卡片 `inline-size: 100%`（跟随舞台宽度，即随窗口横向伸缩）+ `aspect-ratio: var(--ntp-card-aspect)` + `block-size: auto` + `max-block-size: 100%`。`--ntp-card-aspect` 由 `applyCardAspect()` 从 `window.screen.width / screen.height` 写进 `:root`（取不到就不写，CSS 里备了 `16 / 9`）。这样竖向拖动窗口只改舞台高度、不改卡片尺寸；窗口太矮时 `max-block-size` 兜底，卡片不会顶上去盖住瓦片。`inline-size: 100%` 和 `box-sizing: border-box` 都必须写：宽度留 `auto` 时 `aspect-ratio` 会把比例反向传给宽度，`max-block-size` 一夹就把卡片夹窄（实测掉到 146px）。
+- 悬停露出：纯 CSS，`.ntp-card:hover ~ .ntp-card` 把叠在上面的卡片 `translateY(--ntp-card-exit-distance)` 移出视口（`scale()` 原样保留，否则滑走的卡片会突然变大），过渡用 Material 3 Expressive 的 “default spatial” 曲线 `cubic-bezier(0.38, 1.21, 0.22, 1)` / 500ms（`--ntp-card-ease` / `--ntp-card-transition`，曲线会过冲到 1 以上再回落，就是那点阻尼感）。同时给这些卡片 `pointer-events: none`：滑走的卡片会经过光标下方，否则 hover 目标跳到它身上，状态在两个元素之间来回抖动。
 - 恢复：整张卡片（标题栏 + 快照）是一个 `<a>`，`click` 时 `preventDefault()` 再 `sessions.restore(sessionId)`；恢复失败（会话已被清理）就退回到 `location.href = url`，仍然能打开这个页面。
 - 复制链接按钮是那个 `<a>` 的**兄弟节点**（绝对定位到标题栏右侧），不能嵌在 `<a>` 里——`<a>` 内嵌 `<button>` 是非法结构。图标直接取 `Doc/IconPark-master` 里的 `Edit/copy.svg`（Apache-2.0），去掉 `xmlns` 放进 `newtab.html` 的 `<template id="ntp-card-copy-icon">`：HTML 解析器会自动把它放进 SVG 命名空间，于是 JS 里不需要 `createElementNS` 和 `http://www.w3.org/2000/svg` 这个会被构建规则拦掉的字符串，克隆模板即可。`fill: none` + `stroke: currentcolor` 让它跟随按钮颜色。
 - 没有快照时（标签页还没机会被截到）快照区居中显示站点 favicon，尺寸 `--ntp-card-placeholder-size`（2.5rem）比标题栏里的大一圈，但远小于卡片：占位图**不能**铺满快照区，`object-fit: contain` 保持图标比例，`opacity: 0.55` 让它退到背景。注意快照图片的 `inline-size: 100%` 规则必须写成 `.ntp-card-snapshot img:not(.ntp-card-placeholder)`，否则同属性选择器的特异度会压过占位图尺寸，把它拉满整张卡片。Chromium 走 `/_favicon/`；Firefox 的 `sessions` 不带内联图标，而 `favIconUrl` 是远程地址（违反“不加载远程图片”），所以退化成站点首字母。
@@ -210,7 +211,8 @@ npm run build
 - [ ] Firefox 下删除瓦片后由溢出站点补位，刷新后仍隐藏
 - [ ] 设置弹窗即时生效，点背景和关闭按钮都能关闭
 - [ ] 瓦片在上方、最近关闭卡片在下方层叠：最新的卡片最大且被视口下边缘切掉一截，往回依次缩小，未选中的卡片露出标题栏 + 半条标题栏的快照
-- [ ] 悬停第二/第三张卡片时，压在它上面的卡片带缓动滑出视口，光标指的那张完整露出（含快照）
+- [ ] 悬停第二/第三张卡片时，压在它上面的卡片带缓动滑出视口（M3 Expressive 阻尼曲线），光标指的那张完整露出（含快照）
+- [ ] 横向拉伸窗口卡片等比缩放，竖向拖动窗口卡片大小不变；卡片长宽比等于屏幕长宽比
 - [ ] 标题与链接共用同一个字符数上限，窗口变窄时不刷新页面也会收得更紧
 - [ ] 点卡片恢复被关闭的标签页；点复制按钮只复制链接、不触发恢复
 - [ ] 没有快照的卡片在快照区居中显示 favicon（Firefox 显示首字母），不是一片空白，也没有被拉满整张卡片

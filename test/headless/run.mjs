@@ -1624,6 +1624,38 @@ async function cardsScenario(page, errors) {
     return `${info.widths.join('/')}px wide, newest cut off at the bottom`;
   });
 
+  await check('cards', 'card size follows the display ratio and ignores height', async () => {
+    const info = await page.evaluate(`(() => {
+      const card = document.querySelectorAll('.ntp-card')[2];
+      const rect = card.getBoundingClientRect();
+      const stage = document.getElementById('ntp-recent').getBoundingClientRect();
+      return {
+        width: Math.round(rect.width),
+        height: Math.round(rect.height),
+        stageWidth: Math.round(stage.width),
+        stageHeight: Math.round(stage.height),
+        screenRatio: window.screen.width / window.screen.height,
+      };
+    })()`);
+
+    // Width comes from the stage; height is either the display ratio applied to
+    // that width, or (short window) the stage height cap. Nothing here reads the
+    // viewport height, which is what keeps a vertical drag from resizing cards.
+    const expectedHeight = Math.min(
+      info.width / info.screenRatio,
+      info.stageHeight,
+    );
+    assert(
+      info.width === info.stageWidth,
+      `card is ${info.width}px wide inside a ${info.stageWidth}px stage`,
+    );
+    assert(
+      Math.abs(info.height - expectedHeight) < 1.5,
+      `card is ${info.height}px tall, expected ${expectedHeight.toFixed(1)} (ratio ${info.screenRatio.toFixed(2)})`,
+    );
+    return `${info.width}x${info.height} at ratio ${info.screenRatio.toFixed(2)}`;
+  });
+
   await check('cards', 'long title and url fold with one shared limit', async () => {
     const info = await page.evaluate(`(() => {
       const labels = [...document.querySelectorAll('.ntp-card-label')];
@@ -1768,7 +1800,10 @@ async function cardsScenario(page, errors) {
     );
     const offsets = transforms.map(translateY);
 
-    assert(offsets[2] > 100, `card above did not move: ${transforms[2]}`);
+    assert(
+      offsets[2] > 100,
+      `card above did not move: ${transforms[2]} at ${point.x},${point.y}`,
+    );
     assert(offsets[0] < 0 && offsets[1] < 0, `stack offsets lost: ${offsets.join(',')}`);
 
     await recordScreenshot(page, 'cards', 'chrome-cards-hover.png');

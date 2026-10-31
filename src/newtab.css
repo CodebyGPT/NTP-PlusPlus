@@ -66,8 +66,10 @@
   --ntp-card-copy-radius: 6px;
   --ntp-card-copy-glyph-size: 0.6875rem;
   --ntp-card-placeholder-size: 2.5rem;
-  --ntp-card-ease: cubic-bezier(0.22, 1, 0.36, 1);
-  --ntp-card-transition: 320ms;
+  /* Material 3 Expressive "default spatial" curve: the overshoot past 1 is the
+     damping you feel as the card lands. Paired duration is the token's 500ms. */
+  --ntp-card-ease: cubic-bezier(0.38, 1.21, 0.22, 1);
+  --ntp-card-transition: 500ms;
   --ntp-card-exit-distance: calc(
     100% + var(--ntp-page-padding) + var(--ntp-card-bar-block-size)
   );
@@ -468,12 +470,22 @@ body.ntp-firefox-style .ntp-tile-link:focus-visible .ntp-tile-icon {
   margin-block-end: calc(var(--ntp-card-overhang) * -1);
 }
 
+/* The card box is width-driven: it takes the stage width and derives its
+   height from the display aspect ratio, so a taller or shorter window does not
+   stretch the cards. Bottom-anchored, so that height change grows upwards.
+   The stage is the short-window backstop: when the window is too short for the
+   aspect ratio, the card stops at the stage top instead of covering the tiles. */
 .ntp-card {
   position: absolute;
-  inset-block-start: 0;
+  inset-block-end: 0;
   inset-inline: 0;
-  /* The stage runs past the viewport, so this box is clipped down there. */
-  block-size: 100%;
+  /* Definite width, derived height: with an auto width the ratio would be
+     transferred the other way and a height cap would shrink the card. */
+  box-sizing: border-box;
+  inline-size: 100%;
+  block-size: auto;
+  max-block-size: 100%;
+  aspect-ratio: var(--ntp-card-aspect, 16 / 9);
   overflow: hidden;
   border: 1px solid var(--ntp-card-border);
   border-radius: var(--ntp-card-radius);
