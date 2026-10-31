@@ -136,7 +136,8 @@ test/
 - favicon 尺寸固定 `--ntp-tile-favicon-size: 1.6rem`（25.6px），两套风格共用。Chromium 的圆形底 `--ntp-tile-icon-size: 2.875rem`（46px）比 Firefox 方底的 2.5rem 大一圈，这样方角到圆边有约 5px 余量：正方形内切时角在 70.7% 处，46/2 - 25.6×0.707 ≈ 4.9px。
 - 两套风格共用同一套 DOM，只在 CSS 里分叉：`body.ntp-firefox-style` 改图标底圆角（`--ntp-firefox-tile-icon-radius: 8px`）、去掉瓦片底色、悬停时 `scale()` 图标并加 `--ntp-firefox-tile-icon-shadow` 阴影（默认无阴影，dark 下提高不透明度）、标题 `--ntp-tile-title-clamp: 2`；默认（无该类）是 Chromium 风格（圆形图标底 `--ntp-tile-icon-radius: 50%`、悬停出 `3px` 瓦片底、标题单行）。标题统一用 `-webkit-line-clamp` + `text-overflow: ellipsis`，只切 clamp 数字就切换行数。删除按钮固定在图标右上角，靠 CSS `:hover`/`:focus-within` 淡入淡出，不写 JS 悬停逻辑。
 - 风格偏好存 `ntp-tile-style`，默认值取 `IS_FIREFOX`：识别不到浏览器时回落 Chromium 风格；改设置只切 body class，无需重渲染。
-- 布局用 Flexbox `flex-wrap` + 固定瓦片宽度 + `justify-content: center`，容器宽度上限压到 5 列：窄窗口自动减列、不产生横向滚动，不足 10 个瓦片时最后一行仍然居中。
+- 布局用 Flexbox `flex-wrap` + 固定瓦片宽度（`--ntp-tile-width`，上限 7rem，对齐 Chromium 的 112px 瓦片）+ `justify-content: center`，容器宽度上限压到 5 列：窄窗口自动减列、不产生横向滚动，不足 10 个瓦片时最后一行仍然居中。
+- 瓦片链接不设左右内边距，标题按满瓦片宽度省略，能被截断的字符更多；相邻标题之间靠 flex `gap` 保持间隔，不会重叠或越出安全区。
 
 ### 设置弹窗
 

@@ -17,7 +17,7 @@
   /* New tab tiles. Both browser styles share the same DOM; only the icon
      backing, the tile hover and the radii differ. */
   --ntp-page-padding: clamp(1rem, 4vw, 3rem);
-  --ntp-tile-width: clamp(4.5rem, 17vw, 6.5rem);
+  --ntp-tile-width: clamp(4.5rem, 17vw, 7rem);
   --ntp-tile-gap: clamp(0.5rem, 1.5vw, 1.25rem);
   --ntp-tile-radius: 3px;
   --ntp-tile-icon-size: 2.875rem;
@@ -125,7 +125,9 @@ body {
   flex-direction: column;
   align-items: center;
   gap: calc(var(--ntp-tile-gap) / 2);
-  padding: calc(var(--ntp-tile-gap) / 2);
+  /* No inline padding: the title may use the full tile width, the flex gap
+     still keeps neighbouring titles apart. */
+  padding: calc(var(--ntp-tile-gap) / 2) 0;
   border-radius: var(--ntp-tile-radius);
   background-color: transparent;
   color: var(--ntp-tile-fg);

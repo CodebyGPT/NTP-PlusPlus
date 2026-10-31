@@ -841,6 +841,31 @@ async function chromeScenario(page, errors) {
 
   await check(
     'chrome',
+    'tile titles use the full tile width without overflowing it',
+    async () => {
+      const info = await page.evaluate(`(() => {
+        const tile = document.querySelector('#ntp-tiles .ntp-tile');
+        const title = tile?.querySelector('.ntp-tile-title');
+        if (!tile || !title) return null;
+        const tileBox = tile.getBoundingClientRect();
+        const titleBox = title.getBoundingClientRect();
+        return { tile: tileBox.width, title: titleBox.width };
+      })()`);
+      assert(info, 'tile or title missing');
+      assert(
+        info.title >= info.tile - 1,
+        `title box is ${info.title.toFixed(1)}px inside a ${info.tile.toFixed(1)}px tile`,
+      );
+      assert(
+        info.title <= info.tile + 0.5,
+        `title box overflows the tile (${info.title.toFixed(1)} > ${info.tile.toFixed(1)})`,
+      );
+      return `${info.title.toFixed(1)}px of ${info.tile.toFixed(1)}px`;
+    },
+  );
+
+  await check(
+    'chrome',
     'a partial last row stays centered',
     async () => {
       const info = await page.evaluate(`(() => {
