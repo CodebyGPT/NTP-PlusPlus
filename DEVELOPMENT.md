@@ -133,7 +133,7 @@ test/
 - 隐藏记录以 origin 为 key（`ntp-hidden-sites`），切换“只保留域名”不会让已删站点复活；删除后从溢出池补位。
 - Chromium 图标走 `runtime.getURL('/_favicon/')` + `pageUrl` + `size=64`（需要 `favicon` 权限）；Firefox 用 `topSites` 返回的 data URL。加载失败就移除 `img`，露出首字母。
 - 左键当前标签页打开、右键原生菜单：瓦片就是普通 `<a href>`，不监听 `contextmenu`。
-- 两套风格共用同一套 DOM，只在 CSS 里分叉：`body.ntp-firefox-style` 改图标底圆角（`--ntp-firefox-tile-icon-radius: 8px`）、去掉瓦片底色、悬停时 `scale()` 图标；默认（无该类）是 Chromium 风格（圆形图标底 `--ntp-tile-icon-radius: 50%`、悬停出 `2px` 瓦片底）。删除按钮固定在图标右上角，靠 CSS `:hover`/`:focus-within` 淡入淡出，不写 JS 悬停逻辑。
+- 两套风格共用同一套 DOM，只在 CSS 里分叉：`body.ntp-firefox-style` 改图标底圆角（`--ntp-firefox-tile-icon-radius: 8px`）、去掉瓦片底色、悬停时 `scale()` 图标、标题 `--ntp-tile-title-clamp: 2`；默认（无该类）是 Chromium 风格（圆形图标底 `--ntp-tile-icon-radius: 50%`、悬停出 `3px` 瓦片底、标题单行）。标题统一用 `-webkit-line-clamp` + `text-overflow: ellipsis`，只切 clamp 数字就切换行数。删除按钮固定在图标右上角，靠 CSS `:hover`/`:focus-within` 淡入淡出，不写 JS 悬停逻辑。
 - 风格偏好存 `ntp-tile-style`，默认值取 `IS_FIREFOX`：识别不到浏览器时回落 Chromium 风格；改设置只切 body class，无需重渲染。
 - 布局用 Grid `repeat(auto-fit, minmax(...))` 并把宽度上限压到 5 列，窄窗口自动减列，不产生横向滚动。
 
@@ -168,7 +168,7 @@ npm run build
 - [ ] 从新标签页切到任意其他标签页后（含其他窗口），新标签页关闭
 - [ ] 窄窗口（≥320px）下瓦片自动减列，无横向滚动
 - [ ] Chromium 下瓦片无删除按钮、收藏选项置灰；图标走 `/_favicon/`
-- [ ] Chromium 默认圆形图标底、悬停出瓦片底；Firefox 默认 8px 图标底、悬停图标放大并淡入删除按钮
+- [ ] Chromium 默认圆形图标底、悬停出瓦片底、标题单行；Firefox 默认 8px 图标底、悬停图标放大并淡入删除按钮、标题最多两行
 - [ ] 设置里切换瓦片风格立即生效，刷新后仍保持
 - [ ] Firefox 下删除瓦片后由溢出站点补位，刷新后仍隐藏
 - [ ] 设置弹窗即时生效，点背景和关闭按钮都能关闭

@@ -44,7 +44,11 @@ const BOGUS_FAVICON = 'data:image/svg+xml,this-is-not-an-image';
 // duplicate domains, #3 has a broken favicon, #5 exactly matches the bookmark
 // and #6 is a different host on the same registrable domain.
 const MOCK_SITES = [
-  { title: 'Alpha', url: 'https://alpha.example.com/one', favicon: FAVICON },
+  {
+    title: 'Alpha News — a deliberately long headline that wraps',
+    url: 'https://alpha.example.com/one',
+    favicon: FAVICON,
+  },
   { title: 'Beta', url: 'https://beta.example.com/two', favicon: FAVICON },
   {
     title: 'Bogus Icon',
@@ -778,6 +782,32 @@ async function chromeScenario(page, errors) {
 
   await check(
     'chrome',
+    'titles stay on a single line',
+    async () => {
+      const info = await page.evaluate(`(() => {
+        const title = document.querySelector('#ntp-tiles .ntp-tile-title');
+        if (!title) return null;
+        const original = title.textContent;
+        title.textContent =
+          'A deliberately long site title that would need a second line to fit';
+        const style = getComputedStyle(title);
+        const height = title.getBoundingClientRect().height;
+        const lineHeight = Number.parseFloat(style.lineHeight);
+        title.textContent = original;
+        return {
+          clamp: style.getPropertyValue('-webkit-line-clamp'),
+          lines: lineHeight ? Math.round(height / lineHeight) : 0,
+        };
+      })()`);
+      assert(info, 'tile title missing');
+      assert(info.clamp === '1', `line clamp was "${info.clamp}", expected 1`);
+      assert(info.lines === 1, `title rendered ${info.lines} lines, expected 1`);
+      return '1 line';
+    },
+  );
+
+  await check(
+    'chrome',
     'hovering a tile draws the 3px tile background',
     async () => {
       const point = await page.evaluate(`(() => {
@@ -954,6 +984,32 @@ async function firefoxScenario(page, errors) {
       );
       assert(info.styleChecked === true, 'style checkbox not checked on Firefox');
       return `8px icon radius, transparent tile`;
+    },
+  );
+
+  await check(
+    'firefox',
+    'titles wrap onto at most two lines',
+    async () => {
+      const info = await page.evaluate(`(() => {
+        const title = document.querySelector('#ntp-tiles .ntp-tile-title');
+        if (!title) return null;
+        const original = title.textContent;
+        title.textContent =
+          'A deliberately long site title that needs to wrap onto a second line and then be clipped';
+        const style = getComputedStyle(title);
+        const height = title.getBoundingClientRect().height;
+        const lineHeight = Number.parseFloat(style.lineHeight);
+        title.textContent = original;
+        return {
+          clamp: style.getPropertyValue('-webkit-line-clamp'),
+          lines: lineHeight ? Math.round(height / lineHeight) : 0,
+        };
+      })()`);
+      assert(info, 'tile title missing');
+      assert(info.clamp === '2', `line clamp was "${info.clamp}", expected 2`);
+      assert(info.lines === 2, `title rendered ${info.lines} lines, expected 2`);
+      return '2 lines';
     },
   );
 
