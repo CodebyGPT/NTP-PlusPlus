@@ -17,7 +17,7 @@ const SHARED_FILES = [
 
 const LOCALES_DIR = '_locales';
 
-const FIREFOX_ADDON_ID = 'just-a-ntp@example.com';
+const FIREFOX_ADDON_ID = 'ntp-plusplus@example.com';
 const FIREFOX_MIN_VERSION = '109.0';
 const CHROME_MIN_VERSION = '121';
 

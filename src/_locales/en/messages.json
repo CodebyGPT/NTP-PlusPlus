@@ -1,6 +1,6 @@
 {
   "extensionName": {
-    "message": "Just a NTP"
+    "message": "NTP++"
   },
   "languageCode": {
     "message": "en"
@@ -9,7 +9,7 @@
     "message": "New Tab"
   },
   "diagnosticsTitle": {
-    "message": "Just a NTP diagnostics"
+    "message": "NTP++ diagnostics"
   },
   "diagnosticsHint": {
     "message": "Select the log, then right-click to copy"

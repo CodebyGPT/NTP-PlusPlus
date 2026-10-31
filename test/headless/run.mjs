@@ -1,4 +1,4 @@
-// Headless contract tests for the Just a NTP new-tab page.
+// Headless contract tests for the NTP++ new-tab page.
 //
 //   node test/headless/run.mjs            # all scenarios
 //   node test/headless/run.mjs --only=chrome
@@ -2091,7 +2091,7 @@ async function main() {
   runBuild();
 
   const userDataDir = await mkdtemp(
-    path.join(tmpdir(), 'just-a-ntp-headless-'),
+    path.join(tmpdir(), 'ntp-plusplus-headless-'),
   );
   let browser;
   let exitCode = 0;

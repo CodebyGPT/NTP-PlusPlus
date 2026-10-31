@@ -1,6 +1,6 @@
 {
   "extensionName": {
-    "message": "Just a NTP"
+    "message": "NTP++"
   },
   "languageCode": {
     "message": "zh-CN"
@@ -9,7 +9,7 @@
     "message": "新标签页"
   },
   "diagnosticsTitle": {
-    "message": "Just a NTP 诊断日志"
+    "message": "NTP++ 诊断日志"
   },
   "diagnosticsHint": {
     "message": "选中日志后右键复制"

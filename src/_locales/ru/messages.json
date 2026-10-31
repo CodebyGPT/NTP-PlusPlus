@@ -1,6 +1,6 @@
 {
   "extensionName": {
-    "message": "Just a NTP"
+    "message": "NTP++"
   },
   "languageCode": {
     "message": "ru"
@@ -9,7 +9,7 @@
     "message": "Новая вкладка"
   },
   "diagnosticsTitle": {
-    "message": "Диагностика Just a NTP"
+    "message": "Диагностика NTP++"
   },
   "diagnosticsHint": {
     "message": "Выделите журнал и скопируйте через контекстное меню"
