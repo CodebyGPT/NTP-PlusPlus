@@ -39,8 +39,8 @@
   --ntp-focus-ring: #2f6fed;
   --ntp-transition: 120ms;
 
-  /* Recently closed cards: a stack of title bars, each with a page snapshot
-     below. The bar height doubles as the offset between stacked cards. */
+  /* Recently closed cards: a stack of progressively smaller cards, each
+     exposing a title bar plus a sliver of snapshot. */
   --ntp-main-gap: clamp(1rem, 3vh, 2.5rem);
   --ntp-card-max-width: 56rem;
   --ntp-card-radius: 10px;
@@ -56,6 +56,12 @@
   --ntp-card-fg: #26262c;
   --ntp-card-muted: #62626e;
   --ntp-card-snapshot-bg: rgb(0 0 0 / 5%);
+  /* Vertical gap between two stacked cards: a bar plus half a bar of peek. */
+  --ntp-card-step: calc(var(--ntp-card-bar-block-size) * 1.5);
+  /* Each further-back card shrinks by this much, so the newest reads biggest. */
+  --ntp-card-scale-step: 0.05;
+  /* The newest card runs past the bottom of the viewport on purpose. */
+  --ntp-card-overhang: clamp(2rem, 12vh, 9rem);
   --ntp-card-copy-size: 1.75rem;
   --ntp-card-copy-radius: 6px;
   --ntp-card-copy-glyph-size: 0.6875rem;
@@ -125,6 +131,8 @@ body {
   display: flex;
   flex-direction: column;
   padding: var(--ntp-page-padding);
+  /* The card stage bleeds into the bottom edge on purpose. */
+  padding-block-end: 0;
   overflow: hidden;
   background-color: var(--ntp-bg);
 }
@@ -139,6 +147,9 @@ body {
   gap: var(--ntp-main-gap);
   min-block-size: 0;
   inline-size: 100%;
+  /* Clip, not scroll: the stacked cards run past the bottom edge and must not
+     add to the page's scrollable area. */
+  overflow: clip;
 }
 
 /* Flex instead of grid: a full last row still centers when fewer than 10
@@ -442,32 +453,35 @@ body.ntp-firefox-style .ntp-tile-link:focus-visible .ntp-tile-icon {
 
 
 
-/* Recently closed cards. Every card is the same box; the inline
-   --ntp-card-index lifts each one by a title bar so only the bars show. The
-   top margin reserves the space those lifted bars occupy. */
+/* Recently closed cards. Cards share one box and the inline --ntp-card-index
+   lifts and shrinks each one, so the newest sits lowest and reads biggest.
+   The top margin reserves the space the lifted cards occupy. */
 .ntp-recent {
   position: relative;
   flex: 1;
   min-block-size: 0;
   inline-size: min(100%, var(--ntp-card-max-width));
-  margin-block-start: calc(
-    (var(--ntp-card-count, 1) - 1) * var(--ntp-card-bar-block-size)
-  );
+  margin-block-start: calc((var(--ntp-card-count, 1) - 1) * var(--ntp-card-step));
+  /* Pull the stage past the bottom edge so the newest card is cut off by the
+     viewport instead of ending early. The negative margin keeps the page
+     itself exactly one viewport tall. */
+  margin-block-end: calc(var(--ntp-card-overhang) * -1);
 }
 
 .ntp-card {
   position: absolute;
   inset-block-start: 0;
   inset-inline: 0;
+  /* The stage runs past the viewport, so this box is clipped down there. */
   block-size: 100%;
   overflow: hidden;
   border: 1px solid var(--ntp-card-border);
   border-radius: var(--ntp-card-radius);
   background-color: var(--ntp-card-bg);
   box-shadow: var(--ntp-card-shadow);
-  transform: translateY(
-    calc(var(--ntp-card-index, 0) * var(--ntp-card-bar-block-size) * -1)
-  );
+  transform-origin: 50% 0;
+  transform: translateY(calc(var(--ntp-card-index, 0) * var(--ntp-card-step) * -1))
+    scale(calc(1 - var(--ntp-card-index, 0) * var(--ntp-card-scale-step)));
   transition: transform var(--ntp-card-transition) var(--ntp-card-ease);
 }
 
@@ -477,7 +491,8 @@ body.ntp-firefox-style .ntp-tile-link:focus-visible .ntp-tile-icon {
 .ntp-card:hover ~ .ntp-card,
 .ntp-card:focus-within ~ .ntp-card {
   pointer-events: none;
-  transform: translateY(var(--ntp-card-exit-distance));
+  transform: translateY(var(--ntp-card-exit-distance))
+    scale(calc(1 - var(--ntp-card-index, 0) * var(--ntp-card-scale-step)));
 }
 
 .ntp-card-open {

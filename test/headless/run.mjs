@@ -1592,6 +1592,38 @@ async function cardsScenario(page, errors) {
     return hrefs.length + ' cards, newest last';
   });
 
+  await check('cards', 'the stack tapers and peeks past the viewport', async () => {
+    const info = await page.evaluate(`(() => {
+      const cards = [...document.querySelectorAll('.ntp-card')];
+      const rects = cards.map((card) => card.getBoundingClientRect());
+      const bar = cards[2].querySelector('.ntp-card-bar').getBoundingClientRect();
+      return {
+        widths: rects.map((rect) => Math.round(rect.width)),
+        tops: rects.map((rect) => Math.round(rect.top)),
+        bottoms: rects.map((rect) => Math.round(rect.bottom)),
+        barHeight: Math.round(bar.height),
+        innerHeight: window.innerHeight,
+      };
+    })()`);
+    // DOM order is oldest -> newest, so widths must grow towards the newest.
+    assert(
+      info.widths[0] < info.widths[1] && info.widths[1] < info.widths[2],
+      `cards are not tapered: ${info.widths.join('/')}`,
+    );
+    const peeks = [info.tops[2] - info.tops[1], info.tops[1] - info.tops[0]];
+    assert(
+      peeks.every(
+        (peek) => peek > info.barHeight * 1.3 && peek < info.barHeight * 1.7,
+      ),
+      `peek is ${peeks.join('/')}px, bar is ${info.barHeight}px`,
+    );
+    assert(
+      info.bottoms[2] > info.innerHeight,
+      `newest card ends at ${info.bottoms[2]} in a ${info.innerHeight}px viewport`,
+    );
+    return `${info.widths.join('/')}px wide, newest cut off at the bottom`;
+  });
+
   await check('cards', 'long title and url fold with one shared limit', async () => {
     const info = await page.evaluate(`(() => {
       const labels = [...document.querySelectorAll('.ntp-card-label')];
