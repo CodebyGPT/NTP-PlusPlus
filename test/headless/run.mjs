@@ -818,14 +818,25 @@ async function chromeScenario(page, errors) {
         const imageBox = image.getBoundingClientRect();
         const radius = iconBox.width / 2;
         const corner = Math.hypot(imageBox.width / 2, imageBox.height / 2);
-        return { radius, corner, gap: radius - corner };
+        return {
+          radius,
+          corner,
+          gap: radius - corner,
+          iconSize: iconBox.width,
+          faviconSize: imageBox.width,
+        };
       })()`);
       assert(info, 'icon or favicon missing');
       assert(
-        Math.abs(info.gap - 5) <= 1.5,
+        info.gap > 0.5,
         `favicon corner is ${info.gap.toFixed(1)}px from the circle edge`,
       );
-      return `${info.gap.toFixed(1)}px corner gap`;
+      assert(
+        Math.abs(info.faviconSize - info.iconSize * 0.64) < 0.5,
+        `favicon is ${info.faviconSize.toFixed(1)}px, expected the Firefox-style ` +
+          `${(info.iconSize * 0.64).toFixed(1)}px`,
+      );
+      return `${info.faviconSize.toFixed(1)}px favicon, ${info.gap.toFixed(1)}px corner gap`;
     },
   );
 

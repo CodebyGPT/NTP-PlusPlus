@@ -24,12 +24,10 @@
   --ntp-tile-icon-radius: 50%;
   --ntp-tile-icon-bg: rgb(0 0 0 / 6%);
   --ntp-tile-icon-hover-scale: 1.3;
-  /* Square favicons have to stay inside the round backing: the corner of a
-     square inscribed in a circle sits at 70.7% of its width, so a 15/70 split
-     leaves the corners exactly on the circle edge. 23.5% leaves ~5px of gap;
-     the Firefox style overrides it back to 18% because a rounded square never
-     meets the icon corners. */
-  --ntp-tile-favicon-inset: 23.5%;
+  /* One favicon size for both styles: 18% inset leaves the corners of a square
+     favicon just inside the round backing (the corner of an inscribed square
+     sits at 70.7% of its width), and matches the Firefox-style icon size. */
+  --ntp-tile-favicon-inset: 18%;
   --ntp-tile-bg-hover: rgb(0 0 0 / 8%);
   --ntp-tile-title-line-height: 1.3;
   --ntp-tile-title-clamp: 1;
@@ -192,10 +190,6 @@ body {
    hover and the remove button fades in over the icon's top-right corner. */
 body.ntp-firefox-style .ntp-tile-link {
   border-radius: 0;
-}
-
-body.ntp-firefox-style {
-  --ntp-tile-favicon-inset: 18%;
 }
 
 body.ntp-firefox-style .ntp-tile-link:hover {
