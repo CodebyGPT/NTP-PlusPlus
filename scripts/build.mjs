@@ -10,6 +10,7 @@ const SHARED_FILES = [
   'newtab.css',
   'newtab.html',
   'newtab.js',
+  'topsites.js',
 ];
 
 const LOCALES_DIR = '_locales';
@@ -130,12 +131,12 @@ async function main() {
     chrome: {
       ...baseManifest,
       minimum_chrome_version: CHROME_MIN_VERSION,
-      permissions: ['tabs'],
+      permissions: ['tabs', 'topSites', 'favicon'],
       host_permissions: ['<all_urls>'],
     },
     firefox: {
       ...baseManifest,
-      permissions: ['theme', 'tabs'],
+      permissions: ['theme', 'tabs', 'topSites', 'bookmarks'],
       host_permissions: ['<all_urls>'],
       browser_specific_settings: {
         gecko: {

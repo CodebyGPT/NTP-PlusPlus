@@ -674,6 +674,9 @@ async function chromeScenario(page, errors) {
     return 'dialog.open === true';
   });
 
+  await sleep(250);
+  await recordScreenshot(page, 'chrome', 'chrome-settings.png');
+
   await check('chrome', 'dialog ::backdrop is styled', async () => {
     const style = await page.evaluate(`(() => {
       const dialog = document.querySelector('#ntp-settings');

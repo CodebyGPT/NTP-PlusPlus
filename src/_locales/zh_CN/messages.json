@@ -19,5 +19,23 @@
   },
   "copied": {
     "message": "已复制"
+  },
+  "removeSite": {
+    "message": "删除"
+  },
+  "settingsButton": {
+    "message": "设置"
+  },
+  "settingsTitle": {
+    "message": "设置"
+  },
+  "closeSettings": {
+    "message": "关闭"
+  },
+  "optionDomainOnly": {
+    "message": "只保留域名"
+  },
+  "optionExcludeBookmarks": {
+    "message": "排除已收藏的网站"
   }
 }

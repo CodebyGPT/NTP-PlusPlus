@@ -12,7 +12,36 @@
   --ntp-diag-font: 0.75rem;
   --ntp-diag-gap: 0.5rem;
   --ntp-diag-radius: 0.5rem;
-  --ntp-diag-z-index: 2147483647;
+  --ntp-diag-z-index: 10;
+
+  /* New tab tiles. */
+  --ntp-page-padding: clamp(1rem, 4vw, 3rem);
+  --ntp-tile-width: clamp(4.5rem, 17vw, 6.5rem);
+  --ntp-tile-gap: clamp(0.5rem, 1.5vw, 1.25rem);
+  --ntp-tile-radius: 0.75rem;
+  --ntp-tile-icon-size: 2rem;
+  --ntp-tile-bg: rgb(0 0 0 / 4%);
+  --ntp-tile-bg-hover: rgb(0 0 0 / 8%);
+  --ntp-tile-fg: #26262c;
+  --ntp-tile-muted: #62626e;
+  --ntp-tile-letter-bg: rgb(0 0 0 / 8%);
+  --ntp-tile-remove-bg: #ffffff;
+  --ntp-tile-remove-fg: #4a4a55;
+  --ntp-tile-remove-border: rgb(0 0 0 / 15%);
+  --ntp-focus-ring: #2f6fed;
+
+  /* Settings button and dialog. */
+  --ntp-settings-size: 2.75rem;
+  --ntp-settings-offset: clamp(0.75rem, 2vw, 1.5rem);
+  --ntp-settings-bg: rgb(0 0 0 / 6%);
+  --ntp-settings-bg-hover: rgb(0 0 0 / 12%);
+  --ntp-settings-fg: #4a4a55;
+  --ntp-settings-border: rgb(0 0 0 / 12%);
+  --ntp-settings-z-index: 20;
+  --ntp-dialog-width: 24rem;
+  --ntp-dialog-padding: 1.25rem;
+  --ntp-dialog-radius: 1rem;
+  --ntp-backdrop: rgb(0 0 0 / 45%);
 
   background-color: var(--ntp-bg);
 }
@@ -20,6 +49,20 @@
 @media (prefers-color-scheme: dark) {
   :root {
     --ntp-bg: var(--ntp-bg-dark);
+    --ntp-tile-bg: rgb(255 255 255 / 6%);
+    --ntp-tile-bg-hover: rgb(255 255 255 / 12%);
+    --ntp-tile-fg: #f2f2f6;
+    --ntp-tile-muted: #b6b6c2;
+    --ntp-tile-letter-bg: rgb(255 255 255 / 10%);
+    --ntp-tile-remove-bg: #2c2b33;
+    --ntp-tile-remove-fg: #d6d6de;
+    --ntp-tile-remove-border: rgb(255 255 255 / 20%);
+    --ntp-focus-ring: #8ab4ff;
+    --ntp-settings-bg: rgb(255 255 255 / 8%);
+    --ntp-settings-bg-hover: rgb(255 255 255 / 14%);
+    --ntp-settings-fg: #d6d6de;
+    --ntp-settings-border: rgb(255 255 255 / 16%);
+    --ntp-backdrop: rgb(0 0 0 / 60%);
   }
 }
 
@@ -31,14 +74,243 @@ body {
 }
 
 body {
+  box-sizing: border-box;
+  display: grid;
+  place-items: center;
+  padding: var(--ntp-page-padding);
   overflow: hidden;
   background-color: var(--ntp-bg);
 }
 
+.ntp-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(var(--ntp-tile-width), 1fr));
+  justify-content: center;
+  gap: var(--ntp-tile-gap);
+  inline-size: min(
+    100%,
+    calc(5 * var(--ntp-tile-width) + 4 * var(--ntp-tile-gap))
+  );
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ntp-tile {
+  position: relative;
+}
+
+.ntp-tile-link {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(var(--ntp-tile-gap) / 2);
+  padding: calc(var(--ntp-tile-gap) / 2);
+  border-radius: var(--ntp-tile-radius);
+  background-color: var(--ntp-tile-bg);
+  color: var(--ntp-tile-fg);
+  text-decoration: none;
+}
+
+.ntp-tile-link:hover {
+  background-color: var(--ntp-tile-bg-hover);
+}
+
+.ntp-tile-link:focus-visible {
+  outline: 2px solid var(--ntp-focus-ring);
+  outline-offset: 2px;
+}
+
+.ntp-tile-icon {
+  position: relative;
+  display: grid;
+  place-items: center;
+  inline-size: var(--ntp-tile-icon-size);
+  block-size: var(--ntp-tile-icon-size);
+}
+
+.ntp-tile-favicon {
+  position: absolute;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: contain;
+}
+
+.ntp-tile-icon.has-favicon .ntp-tile-letter {
+  visibility: hidden;
+}
+
+.ntp-tile-letter {
+  display: grid;
+  place-items: center;
+  inline-size: 100%;
+  block-size: 100%;
+  border-radius: 50%;
+  background-color: var(--ntp-tile-letter-bg);
+  font-size: 0.9em;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.ntp-tile-title {
+  max-inline-size: 100%;
+  overflow: hidden;
+  font-size: 0.8rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ntp-tile-muted);
+}
+
+.ntp-tile-remove {
+  position: absolute;
+  inset-block-start: calc(var(--ntp-tile-gap) / -4);
+  inset-inline-end: calc(var(--ntp-tile-gap) / -4);
+  display: grid;
+  place-items: center;
+  inline-size: 1.25rem;
+  block-size: 1.25rem;
+  padding: 0;
+  border: 1px solid var(--ntp-tile-remove-border);
+  border-radius: 50%;
+  background-color: var(--ntp-tile-remove-bg);
+  color: var(--ntp-tile-remove-fg);
+  font-size: 0.9rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.ntp-tile-remove:hover {
+  color: var(--ntp-tile-fg);
+}
+
+.ntp-settings-button {
+  position: fixed;
+  inset-block-end: var(--ntp-settings-offset);
+  inset-inline-end: var(--ntp-settings-offset);
+  z-index: var(--ntp-settings-z-index);
+  display: grid;
+  place-items: center;
+  inline-size: var(--ntp-settings-size);
+  block-size: var(--ntp-settings-size);
+  padding: 0;
+  border: 1px solid var(--ntp-settings-border);
+  border-radius: 50%;
+  background-color: var(--ntp-settings-bg);
+  color: var(--ntp-settings-fg);
+  cursor: pointer;
+}
+
+.ntp-settings-button:hover {
+  background-color: var(--ntp-settings-bg-hover);
+}
+
+.ntp-settings-button:focus-visible {
+  outline: 2px solid var(--ntp-focus-ring);
+  outline-offset: 2px;
+}
+
+.ntp-settings-button svg {
+  inline-size: 60%;
+  block-size: 60%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 4;
+  stroke-linejoin: round;
+}
+
+.ntp-settings {
+  inline-size: calc(100% - 2 * var(--ntp-settings-offset));
+  max-inline-size: var(--ntp-dialog-width);
+  padding: 0;
+  border: 1px solid var(--ntp-settings-border);
+  border-radius: var(--ntp-dialog-radius);
+  background-color: var(--ntp-bg);
+  color: var(--ntp-tile-fg);
+}
+
+.ntp-settings::backdrop {
+  background-color: var(--ntp-backdrop);
+}
+
+.ntp-settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ntp-dialog-padding);
+  padding: var(--ntp-dialog-padding);
+  border-block-end: 1px solid var(--ntp-settings-border);
+}
+
+.ntp-settings-header h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.ntp-settings-close {
+  display: grid;
+  place-items: center;
+  inline-size: 1.75rem;
+  block-size: 1.75rem;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background-color: transparent;
+  color: inherit;
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.ntp-settings-close:hover {
+  background-color: var(--ntp-settings-bg-hover);
+}
+
+.ntp-settings-close:focus-visible {
+  outline: 2px solid var(--ntp-focus-ring);
+  outline-offset: 2px;
+}
+
+.ntp-settings-option {
+  display: flex;
+  align-items: center;
+  gap: var(--ntp-dialog-padding);
+  padding: var(--ntp-dialog-padding);
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.ntp-settings-option + .ntp-settings-option {
+  border-block-start: 1px solid var(--ntp-settings-border);
+}
+
+.ntp-settings-option:hover {
+  background-color: var(--ntp-settings-bg);
+}
+
+.ntp-settings-option.is-disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ntp-settings-option.is-disabled:hover {
+  background-color: transparent;
+}
+
+.ntp-settings-option input {
+  inline-size: 1rem;
+  block-size: 1rem;
+  margin: 0;
+  accent-color: var(--ntp-focus-ring);
+}
+
+
+
 #ntp-diagnostics {
   position: fixed;
   inset-block-end: 0;
-  inset-inline: 0;
+  inset-inline-start: 0;
+  inset-inline-end: calc(var(--ntp-settings-size) + 2 * var(--ntp-settings-offset));
   z-index: var(--ntp-diag-z-index);
   display: flex;
   flex-direction: column;

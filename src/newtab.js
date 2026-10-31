@@ -1,10 +1,45 @@
 import { applyTranslations, t } from './i18n.js';
+import {
+  hostOf,
+  isWebUrl,
+  normalizeHost,
+  prepareTiles,
+  TILE_COUNT,
+  TOP_SITES_FETCH_LIMIT,
+} from './topsites.js';
 
 const extensionApi = globalThis.browser ?? globalThis.chrome;
+
+// Some Chromium builds expose a Firefox-style `browser` alias, so the presence
+// of browser.topSites says nothing. The UA is the reliable cross-browser split:
+// Firefox also supports topSites options and bookmarks, Chromium caps at 10.
+const IS_FIREFOX = /Firefox\//.test(navigator.userAgent);
+
+const FAVICON_SIZE = 64;
+const FAVICON_ENDPOINT = '/_favicon/';
+const HIDDEN_SITES_KEY = 'ntp-hidden-sites';
+const DOMAIN_ONLY_KEY = 'ntp-domain-only';
+const EXCLUDE_BOOKMARKS_KEY = 'ntp-exclude-bookmarks';
+
+const tilesElement = document.getElementById('ntp-tiles');
+const settingsButton = document.getElementById('ntp-settings-button');
+const settingsDialog = document.getElementById('ntp-settings');
+const domainOnlyInput = document.getElementById('opt-domain-only');
+const excludeBookmarksInput = document.getElementById('opt-exclude-bookmarks');
+const hiddenKeys = new Set(readStoredArray(HIDDEN_SITES_KEY));
+const settings = {
+  domainOnly: readStoredFlag(DOMAIN_ONLY_KEY),
+  excludeBookmarks: readStoredFlag(EXCLUDE_BOOKMARKS_KEY),
+};
+let topSites = [];
+let excludedHosts = new Set();
 
 const THEME_BACKGROUND_PROPERTY = '--ntp-bg';
 const THEME_BACKGROUND_KEYS = ['ntp_background', 'frame'];
 const RGB_CHANNEL_COUNT = 3;
+const DEBUG_FLAG = 'debug';
+
+const showDiagnostics = new URLSearchParams(location.search).has(DEBUG_FLAG);
 
 const logLines = [];
 let logElement;
@@ -84,7 +119,9 @@ function logPageState(name) {
 }
 
 applyTranslations();
-createDiagnosticsPanel();
+if (showDiagnostics) {
+  createDiagnosticsPanel();
+}
 logPageState('page:load');
 
 function toCssColor(value) {
@@ -157,6 +194,231 @@ function listenForThemeChanges() {
       return;
     }
     applyTheme(theme);
+  });
+}
+
+function readStoredArray(key) {
+  try {
+    const value = JSON.parse(localStorage.getItem(key) ?? '[]');
+    return Array.isArray(value) ? value : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveStoredArray(key, values) {
+  try {
+    localStorage.setItem(key, JSON.stringify(values));
+  } catch {
+    // Private windows may refuse storage; the in-memory set still works.
+  }
+}
+
+function readStoredFlag(key) {
+  try {
+    return localStorage.getItem(key) === 'true';
+  } catch {
+    return false;
+  }
+}
+
+function saveStoredFlag(key, value) {
+  try {
+    localStorage.setItem(key, String(value));
+  } catch {
+    // Same as above: keep the in-memory setting for this page.
+  }
+}
+
+function faviconSource(tile) {
+  if (tile.favicon) {
+    return tile.favicon;
+  }
+
+  if (IS_FIREFOX) {
+    return undefined;
+  }
+
+  // Chromium needs the "favicon" permission for this internal endpoint.
+  const endpoint = extensionApi.runtime.getURL(FAVICON_ENDPOINT);
+  return `${endpoint}?pageUrl=${encodeURIComponent(tile.sourceUrl)}&size=${FAVICON_SIZE}`;
+}
+
+function createTileElement(tile) {
+  const item = document.createElement('li');
+  item.className = 'ntp-tile';
+
+  const link = document.createElement('a');
+  link.className = 'ntp-tile-link';
+  link.href = tile.url;
+  link.title = tile.title;
+
+  const icon = document.createElement('span');
+  icon.className = 'ntp-tile-icon';
+
+  const source = faviconSource(tile);
+  if (source) {
+    const image = document.createElement('img');
+    image.className = 'ntp-tile-favicon';
+    image.alt = '';
+    image.width = FAVICON_SIZE;
+    image.height = FAVICON_SIZE;
+    image.addEventListener('load', () => icon.classList.add('has-favicon'));
+    image.addEventListener('error', () => image.remove());
+    image.src = source;
+    icon.append(image);
+  }
+
+  const letter = document.createElement('span');
+  letter.className = 'ntp-tile-letter';
+  letter.dataset.tileLetter = '';
+  letter.textContent = tile.title.trim().charAt(0).toUpperCase() || '?';
+  icon.append(letter);
+
+  const title = document.createElement('span');
+  title.className = 'ntp-tile-title';
+  title.textContent = tile.title;
+
+  link.append(icon, title);
+  item.append(link);
+
+  if (IS_FIREFOX) {
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'ntp-tile-remove';
+    remove.dataset.tileRemove = '';
+    remove.textContent = '×';
+    remove.setAttribute('aria-label', `${t('removeSite')} ${tile.title}`);
+    remove.addEventListener('click', () => {
+      hiddenKeys.add(tile.key);
+      saveStoredArray(HIDDEN_SITES_KEY, [...hiddenKeys]);
+      renderTiles();
+      logEvent('topsites:remove', { key: tile.key, hidden: hiddenKeys.size });
+    });
+    item.append(remove);
+  }
+
+  return item;
+}
+
+function renderTiles() {
+  if (!tilesElement) {
+    return;
+  }
+
+  const tiles = prepareTiles(topSites, {
+    domainOnly: settings.domainOnly,
+    excludeHosts: excludedHosts,
+    hiddenKeys,
+  });
+  tilesElement.replaceChildren(...tiles.map(createTileElement));
+  logEvent('topsites:render', {
+    total: topSites.length,
+    shown: tiles.length,
+    limit: TILE_COUNT,
+  });
+}
+
+async function setupTopSites() {
+  try {
+    topSites = IS_FIREFOX
+      ? await extensionApi.topSites.get({
+          includeFavicon: true,
+          limit: TOP_SITES_FETCH_LIMIT,
+        })
+      : await extensionApi.topSites.get();
+    if (!Array.isArray(topSites)) {
+      topSites = [];
+    }
+    logEvent('topsites:loaded', { count: topSites.length });
+  } catch (error) {
+    topSites = [];
+    logEvent('topsites:error', { message: error?.message });
+  }
+
+  await refreshExcludedHosts();
+  renderTiles();
+}
+
+function collectBookmarkHosts(nodes, hosts) {
+  for (const node of nodes ?? []) {
+    if (isWebUrl(node?.url)) {
+      hosts.add(normalizeHost(hostOf(node.url)));
+    }
+    if (Array.isArray(node?.children)) {
+      collectBookmarkHosts(node.children, hosts);
+    }
+  }
+  return hosts;
+}
+
+async function refreshExcludedHosts() {
+  if (!settings.excludeBookmarks || !IS_FIREFOX) {
+    excludedHosts = new Set();
+    return;
+  }
+
+  try {
+    const tree = await extensionApi.bookmarks.getTree();
+    excludedHosts = collectBookmarkHosts(tree, new Set());
+    logEvent('bookmarks:loaded', { hosts: excludedHosts.size });
+  } catch (error) {
+    excludedHosts = new Set();
+    logEvent('bookmarks:error', { message: error?.message });
+  }
+}
+
+function setupSettings() {
+  if (!settingsButton || !settingsDialog) {
+    return;
+  }
+
+  domainOnlyInput.checked = settings.domainOnly;
+  excludeBookmarksInput.checked = settings.excludeBookmarks;
+
+  // Chromium returns at most 10 top sites, so excluding bookmarks would leave
+  // holes in a full grid. Disable the option there instead of reloading.
+  if (!IS_FIREFOX) {
+    excludeBookmarksInput.disabled = true;
+    excludeBookmarksInput
+      .closest('.ntp-settings-option')
+      ?.classList.add('is-disabled');
+  }
+
+  settingsButton.addEventListener('click', () => {
+    if (!settingsDialog.open) {
+      settingsDialog.showModal();
+      logEvent('settings:open');
+    }
+  });
+
+  settingsDialog.addEventListener('click', (event) => {
+    if (event.target === settingsDialog) {
+      settingsDialog.close();
+    }
+  });
+
+  for (const button of settingsDialog.querySelectorAll('[data-close-settings]')) {
+    button.addEventListener('click', () => settingsDialog.close());
+  }
+
+  settingsDialog.addEventListener('close', () => logEvent('settings:close'));
+
+  domainOnlyInput.addEventListener('change', () => {
+    settings.domainOnly = domainOnlyInput.checked;
+    saveStoredFlag(DOMAIN_ONLY_KEY, settings.domainOnly);
+    renderTiles();
+    logEvent('settings:domain-only', { value: settings.domainOnly });
+  });
+
+  excludeBookmarksInput.addEventListener('change', async () => {
+    settings.excludeBookmarks = excludeBookmarksInput.checked;
+    saveStoredFlag(EXCLUDE_BOOKMARKS_KEY, settings.excludeBookmarks);
+    await refreshExcludedHosts();
+    renderTiles();
+    logEvent('settings:exclude-bookmarks', {
+      value: settings.excludeBookmarks,
+    });
   });
 }
 
@@ -272,3 +534,5 @@ function closeWhenFocusIsLost() {
 
 listenForThemeChanges();
 closeWhenFocusIsLost();
+setupSettings();
+setupTopSites();

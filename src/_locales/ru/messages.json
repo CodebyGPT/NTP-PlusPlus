@@ -19,5 +19,23 @@
   },
   "copied": {
     "message": "Скопировано"
+  },
+  "removeSite": {
+    "message": "Удалить"
+  },
+  "settingsButton": {
+    "message": "Настройки"
+  },
+  "settingsTitle": {
+    "message": "Настройки"
+  },
+  "closeSettings": {
+    "message": "Закрыть"
+  },
+  "optionDomainOnly": {
+    "message": "Только домен"
+  },
+  "optionExcludeBookmarks": {
+    "message": "Исключить сайты из закладок"
   }
 }

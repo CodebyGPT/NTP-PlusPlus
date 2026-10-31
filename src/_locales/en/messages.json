@@ -19,5 +19,23 @@
   },
   "copied": {
     "message": "Copied"
+  },
+  "removeSite": {
+    "message": "Remove"
+  },
+  "settingsButton": {
+    "message": "Settings"
+  },
+  "settingsTitle": {
+    "message": "Settings"
+  },
+  "closeSettings": {
+    "message": "Close"
+  },
+  "optionDomainOnly": {
+    "message": "Domain only"
+  },
+  "optionExcludeBookmarks": {
+    "message": "Exclude bookmarked sites"
   }
 }

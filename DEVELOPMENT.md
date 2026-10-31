@@ -2,7 +2,7 @@
 
 ## 项目目标
 
-一个尽量安静的新标签页扩展：纯色、跟随浏览器主题、离开即关闭。功能少，行为可预测，代码能被一次读完。
+一个尽量安静的新标签页扩展：常用网站瓦片、纯色、跟随浏览器主题、离开即关闭。功能少，行为可预测，代码能被一次读完。
 
 ## 硬性规则
 
@@ -11,15 +11,15 @@
 - 不加载远程字体、脚本、样式、图片或图标，全部资源随扩展打包。
 - 运行时不发起任何网络请求：不使用 `fetch`、`XMLHttpRequest`、`WebSocket`、`EventSource`、`sendBeacon`。
 - 不接入统计、崩溃上报、广告或用户标识。
-- 权限：Chrome / Firefox 声明 `tabs` 与 `<all_urls>` 主机权限；Firefox 额外申请读取主题的 `theme`。
-- `<all_urls>` 是项目要求声明的主机权限；当前代码不注入内容脚本、不读取网页内容。`tabs` 权限仅用于比较标签页 URL 是否等于本扩展的 `newtab.html`；不持久化、不传输浏览记录。
+- 权限：Chrome 声明 `tabs`、`topSites`、`favicon` 与 `<all_urls>` 主机权限；Firefox 声明 `theme`、`tabs`、`topSites`、`bookmarks` 与 `<all_urls>` 主机权限。`topSites` 读取常用网站，`favicon` 只用于 `/_favicon/` 图标端点，`bookmarks` 只在开启“排除已收藏的网站”时读取收藏夹主机名。
+- `<all_urls>` 是项目要求声明的主机权限；当前代码不注入内容脚本、不读取网页内容。`tabs` 权限仅用于统计同窗口标签页数量；不持久化、不传输浏览记录。
 - 新依赖必须离线可用，并在引入前说明为什么标准库/平台 API 不够用。
 
 ### 2. 动态自适应布局
 
 - 使用视口单位、`min()`/`max()`/`clamp()`、Flexbox、Grid 等流式方案，不按某个固定分辨率写死布局。
 - 新 UI 至少要在窄窗口、超宽屏、浏览器缩放和不同 DPI 下可用。
-- 当前页面是空白纯色页，但这不豁免规则：背景必须覆盖任意视口，且不产生滚动条。
+- 页面内容不豁免规则：背景必须覆盖任意视口，瓦片网格在窄窗口下自动减列，且不产生滚动条。
 - 优先使用逻辑属性（`block-size`、`inline-size`、`min-block-size`），避免绑定横竖方向。
 
 ### 3. 不写魔法数
@@ -92,14 +92,17 @@ src/
     zh_CN/messages.json  简体中文文案
     ru/messages.json     俄文文案
   manifest.json          公共 manifest 字段
-  i18n.js                t() 与 data-i18n 应用
-  newtab.html            空白新标签页
-  newtab.css             纯色背景、深浅色回退、视口自适应
-  newtab.js              主题同步 + 页面内关闭逻辑
+  i18n.js                t()、data-i18n 与 data-i18n-aria
+  newtab.html            瓦片网格、设置按钮与设置弹窗
+  newtab.css             纯色背景、瓦片、设置弹窗、深浅色回退、视口自适应
+  newtab.js              主题同步 + 瓦片渲染 + 设置 + 页面内关闭逻辑
+  topsites.js            常用网站纯函数（过滤、去重、域名收敛、匹配）
 scripts/
   build.mjs              生成 dist/chrome 与 dist/firefox
 test/
   i18n.test.mjs          i18n 辅助函数检查
+  topsites.test.mjs      常用网站纯函数检查
+  headless/              无 npm 依赖的 CDP 无头浏览器检查（不入库截图产物）
 ```
 
 ### 主题色
@@ -122,6 +125,23 @@ test/
 - 新标签页保持未导航（`history.length === 1`），满足浏览器允许脚本关闭该标签页的前提。
 - `tabs` 权限只用于统计同窗口标签页数量；`<all_urls>` 主机权限按当前要求保留，但代码不注入内容脚本、不读取网页内容。
 
+### 常用网站瓦片
+
+- 浏览器判定用 `navigator.userAgent` 是否含 `Firefox/`。不能依赖 `globalThis.browser` 是否存在：部分 Chromium 构建也暴露该别名；也不能靠特性检测区分，因为两边都有 `topSites`。
+- Firefox 调用 `topSites.get({ includeFavicon: true, limit: 100 })` 一次取满溢出池；Chromium 无参调用 `topSites.get()`（Chromium 不支持 options，且最多返回 10 条）。
+- 纯函数 `src/topsites.js` 只处理列表：过滤非 http/https、跳过排除主机、跳过已隐藏 origin、按目标 URL 去重、截断到 10 条，便于 Node 直接测试。
+- 隐藏记录以 origin 为 key（`ntp-hidden-sites`），切换“只保留域名”不会让已删站点复活；删除后从溢出池补位。
+- Chromium 图标走 `runtime.getURL('/_favicon/')` + `pageUrl` + `size=64`（需要 `favicon` 权限）；Firefox 用 `topSites` 返回的 data URL。加载失败就移除 `img`，露出首字母。
+- 左键当前标签页打开、右键原生菜单：瓦片就是普通 `<a href>`，不监听 `contextmenu`。
+- 布局用 Grid `repeat(auto-fit, minmax(...))` 并把宽度上限压到 5 列，窄窗口自动减列，不产生横向滚动。
+
+### 设置弹窗
+
+- 原生 `<dialog>` + `showModal()`；`::backdrop` 压暗背景；点背景（事件目标就是 dialog 本身）或关闭按钮关闭。
+- 没有保存按钮：勾选即写 `localStorage` 并立即重渲染。
+- “排除已收藏的网站”：`bookmarks.getTree()` 递归收集 http/https 条目的主机名并去掉 `www.` 前缀，按主机名精确匹配（`baike.baidu.com` 不会被 `baidu.com` 的收藏跳过）。
+- Chromium 上该选项置灰禁用：Chromium 的 topSites 只有 10 条，排除后瓦片会留空。这只是前端 `disabled`，不做防止强行开启的防御逻辑。
+
 ## 构建与加载
 
 ```bash
@@ -143,4 +163,8 @@ npm run build
 - [ ] Firefox 下切换主题后新标签页颜色正确
 - [ ] Chromium 下深浅色模式跟随系统
 - [ ] 从新标签页切到任意其他标签页后（含其他窗口），新标签页关闭
-- [ ] `npm test` 与 `npm run build` 通过
+- [ ] 窄窗口（≥320px）下瓦片自动减列，无横向滚动
+- [ ] Chromium 下瓦片无删除按钮、收藏选项置灰；图标走 `/_favicon/`
+- [ ] Firefox 下删除瓦片后由溢出站点补位，刷新后仍隐藏
+- [ ] 设置弹窗即时生效，点背景和关闭按钮都能关闭
+- [ ] `npm test` 与 `npm run build` 通过；`test/headless/run.mjs` 全绿
