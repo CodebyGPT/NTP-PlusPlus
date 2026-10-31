@@ -766,8 +766,8 @@ function fillWindowCard(cardElement, card, charWidth) {
   const shown = truncated ? card.tabs.slice(0, rows - 1) : card.tabs;
 
   const rowElements = shown.map((tab) => {
-    const icon = createTabIcon(tab.url);
-    return createTabRow(limitLabel(tabLine(tab), limitFor(Boolean(icon))), icon);
+    const icon = createTabIcon(tab.url) ?? createTabLetter(tab.url);
+    return createTabRow(limitLabel(tabLine(tab), limitFor(true)), icon);
   });
   if (truncated) {
     rowElements.push(createTabRow(ELLIPSIS));
@@ -785,9 +785,18 @@ function createTabIcon(url) {
   const icon = document.createElement('img');
   icon.className = 'ntp-card-tab-icon';
   icon.alt = '';
-  icon.addEventListener('error', () => icon.remove());
+  icon.addEventListener('error', () => icon.replaceWith(createTabLetter(url)));
   icon.src = source;
   return icon;
+}
+
+// Same fallback as the title bar: no icon source means the site's initial.
+function createTabLetter(url) {
+  const letter = document.createElement('span');
+  letter.className = 'ntp-card-tab-letter';
+  letter.setAttribute('aria-hidden', 'true');
+  letter.textContent = initialOf(url);
+  return letter;
 }
 
 function createTabRow(text, icon) {

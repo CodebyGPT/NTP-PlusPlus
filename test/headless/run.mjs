@@ -2247,9 +2247,9 @@ async function cardsScenario(page, errors) {
       return {
         icons: bar.querySelectorAll('.ntp-card-favicon, .ntp-card-bar-letter').length,
         title: card.querySelector('.ntp-card-title').textContent,
-        rows: rows.map((row) => row.textContent.trim()),
+        rows: rows.map((row) => row.querySelector('.ntp-card-tab-label').textContent),
+        rowIcons: rows.map((row) => row.querySelectorAll('.ntp-card-tab-icon, .ntp-card-tab-letter').length),
         snapshots: card.querySelectorAll('.ntp-card-snapshot img').length,
-        labels: rows.map((row) => row.querySelector('.ntp-card-tab-label').textContent),
         topGap: first.top - box.top - parseFloat(style.paddingBlockStart),
         bottomGap: box.bottom - last.bottom - parseFloat(style.paddingBlockEnd),
         leftGap: labelBox.left - box.left - parseFloat(style.paddingInlineStart),
@@ -2278,6 +2278,10 @@ async function cardsScenario(page, errors) {
     assert(
       info.rows[0].length < WINDOW_TABS[0].title.length + WINDOW_TABS[0].url.length + 3,
       `first row was not folded: "${info.rows[0]}"`,
+    );
+    assert(
+      info.rowIcons.slice(0, -1).every((count) => count === 1),
+      `a row lost its icon: ${info.rowIcons.join(',')}`,
     );
     assert(
       Math.abs(info.topGap - info.bottomGap) < 2,

@@ -731,6 +731,19 @@ body.ntp-firefox-style .ntp-tile-link:focus-visible .ntp-tile-icon {
   object-fit: contain;
 }
 
+/* Same box as the icon, so a row that fell back to a letter still lines up. */
+.ntp-card-tab-letter {
+  flex: 0 0 auto;
+  inline-size: var(--ntp-card-tab-icon-size);
+  block-size: var(--ntp-card-tab-icon-size);
+  font-size: 0.625rem;
+  font-weight: 600;
+  line-height: var(--ntp-card-tab-icon-size);
+  text-align: center;
+  color: var(--ntp-card-muted);
+  opacity: 0.75;
+}
+
 .ntp-card-tab-label {
   min-inline-size: 0;
   overflow: hidden;

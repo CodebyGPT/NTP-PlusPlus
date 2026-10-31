@@ -191,7 +191,7 @@ test/
 - 整个窗口的卡片：`sessions.getRecentlyClosed()` 还会返回 window 型条目（关掉的是整个窗口），这种条目变成一张 `kind: 'window'` 的卡片。标题栏**不显示图标**，标题是“包含<当前标签页的标题 - 链接>等 N 个标签页”，N 是窗口里剩下的标签页数（受过滤影响），当前标签页取 `tabs.find((tab) => tab.active) ?? tabs[0]`。卡片正文不是快照，而是标签页列表，每行“标题 - 链接”，横竖都在卡片里居中（`justify-content: center`，行数少时上下留白对称）。
 - 窗口卡片的字数与行数上限都是量出来的，不硬编码：`fillWindowCard()` 读 `getComputedStyle(list)` 的 `paddingInline`/`paddingBlock`（内边距本身就是“与卡片边缘保持距离”），字数上限 = `charLimitForWidth(可用宽度, 平均字符宽)`，行数上限 = `floor(可用高度 / 行高)`；行高由 `measureRowHeight()` 用绝对定位的探针量，避免插入可见节点抖一帧。装不下的行直接不生成，最后一行换成 `…`（省略号按正常行参与排版，所以列表依然居中）——和“卡片组只渲染选中的张数”同一个思路：不留隐藏 DOM。
 - 窗口卡片的复制按钮复制**所有**标签页，每行 `[标题](链接)`（markdown 链接，粘到任何编辑器、聊天框或 issue 里都能还原成可点链接）、`\n` 分隔、不插空行（`tabsText()`）；单标签页卡片仍然只复制那一个 URL。
-- 窗口卡片的每一行前面带该标签页的 favicon，直接复用标题栏那套 `faviconSource()`（Chromium 走 `/_favicon/`，Firefox 拿不到就干脆不显示，不另发明一条取图标的路）；图标宽度与间距从 `--ntp-card-tab-icon-size` / `--ntp-card-tab-gap` 读回，带图标的那一行字符上限相应减去这段宽度。行内容用 flex 居中（图标 + 文本一起居中），只有文本允许折叠，所以短行真的落在卡片中间，而不是左对齐。
+- 窗口卡片的每一行前面带该标签页的图标，复用标题栏那套 `faviconSource()`：Chromium 走 `/_favicon/`，拿不到（比如 Firefox 只有远程 `favIconUrl`，加载它等于联网）就退到站点首字母 `createTabLetter()`，和标题栏一致。图标宽度与间距从 `--ntp-card-tab-icon-size` / `--ntp-card-tab-gap` 读回，字符上限相应减去这段宽度（首字母盒子与图标同宽，所以两种行折得一样）。行内容用 flex 居中（图标 + 文本一起居中），只有文本允许折叠，所以短行真的落在卡片中间，而不是左对齐。
 - 窗口卡片由 `stack.js` 的 `windowCard()` 产出：过滤规则与标签页卡片一致（`webOnly` 时只留 http/https，否则用 `isCardUrl`），过滤后一个标签页都不剩就返回 `undefined`，整张卡片不渲染。窗口卡片与标签页卡片平等占用同一个 `maxCards` 名额。
 - 带替换的文案（如 `windowCardTitle`）必须在 `messages.json` 里写 `placeholders`（`{"head": {"content": "$1"}}`），正文写 `$head$`；只写 `$1$` 会让 Chrome **拒绝加载整个扩展**，报 “Variable $1$ used but not defined”。`getMessage(key, [a, b])` 按顺序填 `$1`、`$2`。
 
