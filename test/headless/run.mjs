@@ -1569,9 +1569,79 @@ function translateY(transform) {
   return match ? Number(match[1].split(',')[5]) : 0;
 }
 
+// The cards are sized from the stage they fill, so the scenarios need real
+// viewport sizes rather than the headless window's default 758x391.
+const CARD_VIEWPORT_WIDTH = 1440;
+const CARD_VIEWPORT_HEIGHT = 900;
+const NARROW_VIEWPORT_WIDTH = 420;
+const NARROW_VIEWPORT_HEIGHT = 800;
+
+async function setViewport(page, width, height) {
+  await page.cdp.send(
+    'Emulation.setDeviceMetricsOverride',
+    { width, height, deviceScaleFactor: 1, mobile: false },
+    page.sessionId,
+  );
+}
+
+// Geometry of the newest card against the stage that holds it, read once so
+// both the short-window and the landscape checks measure the same things.
+const cardGeometry = `(() => {
+  const card = document.querySelectorAll('.ntp-card')[2];
+  const rect = card.getBoundingClientRect();
+  const stage = document.getElementById('ntp-recent');
+  const box = stage.getBoundingClientRect();
+  return {
+    width: Math.round(rect.width),
+    height: Math.round(rect.height),
+    top: Math.round(rect.top),
+    bottom: Math.round(rect.bottom),
+    stageWidth: Math.round(box.width),
+    stageTop: Math.round(box.top),
+    stageBottom: Math.round(box.bottom),
+    stageHeight: Math.round(box.height),
+    liftedTop: Math.round(
+      document.querySelectorAll('.ntp-card')[0].getBoundingClientRect().top,
+    ),
+    reserved: Math.round(parseFloat(getComputedStyle(stage).marginBlockStart)),
+    screenRatio: window.screen.width / window.screen.height,
+  };
+})()`;
+
+function assertCardFillsStage(info) {
+  const expectedWidth = Math.min(
+    info.stageWidth,
+    info.stageHeight * info.screenRatio,
+  );
+  const expectedHeight = expectedWidth / info.screenRatio;
+  assert(
+    Math.abs(info.width - expectedWidth) < 2,
+    `card is ${info.width}px wide, expected ${expectedWidth.toFixed(1)} (stage ${info.stageWidth}x${info.stageHeight}px)`,
+  );
+  assert(
+    Math.abs(info.height - expectedHeight) < 2,
+    `card is ${info.height}px tall, expected ${expectedHeight.toFixed(1)} at ratio ${info.screenRatio.toFixed(2)}`,
+  );
+  // Bottom-anchored: no gap under the group.
+  assert(
+    Math.abs(info.bottom - info.stageBottom) < 2,
+    `card bottom ${info.bottom} vs stage bottom ${info.stageBottom}`,
+  );
+  // The lifted cards fill the room the stage's top margin reserved for them,
+  // so there is no blank band between the tiles and the stack.
+  assert(
+    Math.abs(info.liftedTop - (info.stageTop - info.reserved)) < 2,
+    `blank above the stack: top card at ${info.liftedTop}, want ${info.stageTop - info.reserved}`,
+  );
+  return `${info.width}x${info.height} at ratio ${info.screenRatio.toFixed(2)}, stage ${info.stageWidth}x${info.stageHeight}`;
+}
+
 async function cardsScenario(page, errors) {
   console.log('\n== Recent cards scenario ==');
   errors.reset();
+  // A desktop-sized viewport: the cards are sized from the stage they fill, so
+  // the headless window's default 758x391 leaves them only a few dozen px tall.
+  await setViewport(page, CARD_VIEWPORT_WIDTH, CARD_VIEWPORT_HEIGHT);
   await loadPage(page, { preload: 'cards', clearStorage: true });
   await page.waitFor(`document.querySelectorAll('.ntp-card').length === 3`, {
     timeout: 10000,
@@ -1624,36 +1694,9 @@ async function cardsScenario(page, errors) {
     return `${info.widths.join('/')}px wide, newest cut off at the bottom`;
   });
 
-  await check('cards', 'card size follows the display ratio and ignores height', async () => {
-    const info = await page.evaluate(`(() => {
-      const card = document.querySelectorAll('.ntp-card')[2];
-      const rect = card.getBoundingClientRect();
-      const stage = document.getElementById('ntp-recent').getBoundingClientRect();
-      return {
-        width: Math.round(rect.width),
-        height: Math.round(rect.height),
-        stageWidth: Math.round(stage.width),
-        stageHeight: Math.round(stage.height),
-        screenRatio: window.screen.width / window.screen.height,
-      };
-    })()`);
-
-    // Width comes from the stage; height is either the display ratio applied to
-    // that width, or (short window) the stage height cap. Nothing here reads the
-    // viewport height, which is what keeps a vertical drag from resizing cards.
-    const expectedHeight = Math.min(
-      info.width / info.screenRatio,
-      info.stageHeight,
-    );
-    assert(
-      info.width === info.stageWidth,
-      `card is ${info.width}px wide inside a ${info.stageWidth}px stage`,
-    );
-    assert(
-      Math.abs(info.height - expectedHeight) < 1.5,
-      `card is ${info.height}px tall, expected ${expectedHeight.toFixed(1)} (ratio ${info.screenRatio.toFixed(2)})`,
-    );
-    return `${info.width}x${info.height} at ratio ${info.screenRatio.toFixed(2)}`;
+  await check('cards', 'card group fills the stage at the display ratio', async () => {
+    const info = await page.evaluate(cardGeometry);
+    return assertCardFillsStage(info);
   });
 
   await check('cards', 'long title and url fold with one shared limit', async () => {
@@ -1822,11 +1865,7 @@ async function cardsScenario(page, errors) {
   });
 
   await check('cards', 'character limit follows the title bar width', async () => {
-    await page.cdp.send(
-      'Emulation.setDeviceMetricsOverride',
-      { width: 420, height: 800, deviceScaleFactor: 1, mobile: false },
-      page.sessionId,
-    );
+    await setViewport(page, NARROW_VIEWPORT_WIDTH, NARROW_VIEWPORT_HEIGHT);
     await sleep(500);
     const narrow = await page.evaluate(`(() => {
       const label = document.querySelectorAll('.ntp-card-label')[2];
@@ -1843,11 +1882,7 @@ async function cardsScenario(page, errors) {
       };
     })()`);
 
-    await page.cdp.send(
-      'Emulation.clearDeviceMetricsOverride',
-      {},
-      page.sessionId,
-    );
+    await setViewport(page, CARD_VIEWPORT_WIDTH, CARD_VIEWPORT_HEIGHT);
     await sleep(500);
     const wide = await page.evaluate(`(() => {
       const label = document.querySelectorAll('.ntp-card-label')[2];
@@ -1876,6 +1911,21 @@ async function cardsScenario(page, errors) {
   });
 
   await recordScreenshot(page, 'cards', 'chrome-cards.png');
+
+  await check('cards', 'card group fills a landscape stage', async () => {
+    await setViewport(page, 1600, 900);
+    await sleep(500);
+    const info = await page.evaluate(cardGeometry);
+    const summary = assertCardFillsStage(info);
+    assert(
+      info.stageHeight > 100,
+      `the landscape stage has no height: ${info.stageHeight}px`,
+    );
+    await recordScreenshot(page, 'cards', 'chrome-cards-wide.png');
+    await setViewport(page, CARD_VIEWPORT_WIDTH, CARD_VIEWPORT_HEIGHT);
+    await sleep(500);
+    return summary;
+  });
 
   await check('cards', 'settings limit defaults to 3 and applies 1', async () => {
     const value = await page.evaluate(
