@@ -210,6 +210,12 @@ function buildBrowserMock(catalog) {
   const bookmarkTree = ${JSON.stringify(bookmarkTree)};
   const tab = { id: 1, windowId: 1, active: true, url: location.href };
 
+  Object.defineProperty(navigator, 'userAgent', {
+    configurable: true,
+    value:
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:140.0) Gecko/20100101 Firefox/140.0',
+  });
+
   globalThis.browser = {
     i18n: {
       getMessage(key) {
@@ -573,6 +579,33 @@ async function chromeScenario(page, errors) {
 
   await check(
     'chrome',
+    'favicons use the /_favicon/ endpoint, not data URLs',
+    async () => {
+      const info = await page.waitFor(`(() => {
+        const images = [...document.querySelectorAll('#ntp-tiles .ntp-tile-favicon')];
+        const tiles = document.querySelectorAll('#ntp-tiles .ntp-tile').length;
+        if (tiles !== 10) return 0;
+        const endpoint = /^chrome-extension:\\/\\/[a-p]{32}\\/_favicon\\/\\?pageUrl=.+&size=64$/;
+        const dataUrl = images.filter((image) => image.src.startsWith('data:'));
+        const good = images.filter((image) => endpoint.test(image.src));
+        return images.length > 0 && dataUrl.length === 0
+          ? { images: images.length, good: good.length, sample: images[0].src }
+          : 0;
+      })()`, { label: 'favicon endpoint images' });
+      assert(
+        info.images === 10,
+        `${info.images} favicon images, expected 10 (${info.sample})`,
+      );
+      assert(
+        info.good === info.images,
+        `${info.good}/${info.images} favics use /_favicon/ (${info.sample})`,
+      );
+      return `${info.images} /_favicon/ images`;
+    },
+  );
+
+  await check(
+    'chrome',
     'no .ntp-tile-remove buttons in the DOM',
     async () => {
       const count = await page.evaluate(
@@ -749,6 +782,19 @@ async function firefoxScenario(page, errors) {
   errors.reset();
   await loadPage(page, { preload: 'firefox', clearStorage: true });
   await sleep(300);
+
+  await check(
+    'firefox',
+    'Firefox user-agent override is active',
+    async () => {
+      const ua = await page.evaluate('navigator.userAgent');
+      assert(
+        typeof ua === 'string' && ua.includes('Firefox/'),
+        `navigator.userAgent does not look like Firefox: ${ua}`,
+      );
+      return ua;
+    },
+  );
 
   await check('firefox', 'renders exactly 10 tiles from 14 sites', async () => {
     const count = await page.waitFor(
