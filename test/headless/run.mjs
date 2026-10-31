@@ -822,10 +822,42 @@ async function chromeScenario(page, errors) {
       })()`);
       assert(info, 'icon or favicon missing');
       assert(
-        info.gap >= 1,
+        Math.abs(info.gap - 5) <= 1.5,
         `favicon corner is ${info.gap.toFixed(1)}px from the circle edge`,
       );
       return `${info.gap.toFixed(1)}px corner gap`;
+    },
+  );
+
+  await check(
+    'chrome',
+    'a partial last row stays centered',
+    async () => {
+      const info = await page.evaluate(`(() => {
+        const list = document.querySelector('#ntp-tiles');
+        const tiles = [...list.querySelectorAll('.ntp-tile')];
+        if (tiles.length !== 10) return null;
+        const removed = tiles.pop();
+        removed.remove();
+        const secondRow = tiles.slice(5);
+        const first = secondRow[0].getBoundingClientRect();
+        const last = secondRow[secondRow.length - 1].getBoundingClientRect();
+        const box = list.getBoundingClientRect();
+        const result = {
+          count: tiles.length,
+          leftGap: first.left - box.left,
+          rightGap: box.right - last.right,
+        };
+        list.append(removed);
+        return result;
+      })()`);
+      assert(info, 'expected 10 tiles before the check');
+      assert(
+        Math.abs(info.leftGap - info.rightGap) < 2,
+        `9 tiles: last row is ${info.leftGap.toFixed(1)}px from the left and ` +
+          `${info.rightGap.toFixed(1)}px from the right`,
+      );
+      return `${info.count} tiles, second row centered`;
     },
   );
 

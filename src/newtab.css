@@ -26,8 +26,10 @@
   --ntp-tile-icon-hover-scale: 1.3;
   /* Square favicons have to stay inside the round backing: the corner of a
      square inscribed in a circle sits at 70.7% of its width, so a 15/70 split
-     leaves the corners exactly on the circle edge. 18% keeps a visible gap. */
-  --ntp-tile-favicon-inset: 18%;
+     leaves the corners exactly on the circle edge. 23.5% leaves ~5px of gap;
+     the Firefox style overrides it back to 18% because a rounded square never
+     meets the icon corners. */
+  --ntp-tile-favicon-inset: 23.5%;
   --ntp-tile-bg-hover: rgb(0 0 0 / 8%);
   --ntp-tile-title-line-height: 1.3;
   --ntp-tile-title-clamp: 1;
@@ -93,9 +95,11 @@ body {
   background-color: var(--ntp-bg);
 }
 
+/* Flex instead of grid: a full last row still centers when fewer than 10
+   tiles are rendered, and the width cap keeps it at five per row. */
 .ntp-tiles {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(var(--ntp-tile-width), 1fr));
+  display: flex;
+  flex-wrap: wrap;
   justify-content: center;
   gap: var(--ntp-tile-gap);
   inline-size: min(
@@ -109,6 +113,7 @@ body {
 
 .ntp-tile {
   position: relative;
+  flex: 0 0 var(--ntp-tile-width);
 }
 
 /* Chromium style: round icon backing, hover turns the whole tile into a
@@ -187,6 +192,10 @@ body {
    hover and the remove button fades in over the icon's top-right corner. */
 body.ntp-firefox-style .ntp-tile-link {
   border-radius: 0;
+}
+
+body.ntp-firefox-style {
+  --ntp-tile-favicon-inset: 18%;
 }
 
 body.ntp-firefox-style .ntp-tile-link:hover {

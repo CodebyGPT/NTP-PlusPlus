@@ -133,10 +133,10 @@ test/
 - 隐藏记录以 origin 为 key（`ntp-hidden-sites`），切换“只保留域名”不会让已删站点复活；删除后从溢出池补位。
 - Chromium 图标走 `runtime.getURL('/_favicon/')` + `pageUrl` + `size=64`（需要 `favicon` 权限）；Firefox 用 `topSites` 返回的 data URL。加载失败就移除 `img`，露出首字母。
 - 左键当前标签页打开、右键原生菜单：瓦片就是普通 `<a href>`，不监听 `contextmenu`。
-- 图标底固定 `--ntp-tile-icon-size: 2.5rem`，favicon 以 `--ntp-tile-favicon-inset`（18%）内缩。圆形底必须留角：正方形内切圆的角半径是边长的 70.7%，所以 15%/70% 会让方形图标四角正好贴在圆边上，18% 才有可见间隙。
+- 图标底固定 `--ntp-tile-icon-size: 2.5rem`，favicon 以 `--ntp-tile-favicon-inset` 内缩。圆形底必须留角：正方形内切圆的角半径是边长的 70.7%，15%/70% 会让方形图标四角正好贴在圆边上；Chromium 风格用 23.5%（留约 5px），Firefox 风格的圆角矩形底不受此限，覆写回 18%。
 - 两套风格共用同一套 DOM，只在 CSS 里分叉：`body.ntp-firefox-style` 改图标底圆角（`--ntp-firefox-tile-icon-radius: 8px`）、去掉瓦片底色、悬停时 `scale()` 图标、标题 `--ntp-tile-title-clamp: 2`；默认（无该类）是 Chromium 风格（圆形图标底 `--ntp-tile-icon-radius: 50%`、悬停出 `3px` 瓦片底、标题单行）。标题统一用 `-webkit-line-clamp` + `text-overflow: ellipsis`，只切 clamp 数字就切换行数。删除按钮固定在图标右上角，靠 CSS `:hover`/`:focus-within` 淡入淡出，不写 JS 悬停逻辑。
 - 风格偏好存 `ntp-tile-style`，默认值取 `IS_FIREFOX`：识别不到浏览器时回落 Chromium 风格；改设置只切 body class，无需重渲染。
-- 布局用 Grid `repeat(auto-fit, minmax(...))` 并把宽度上限压到 5 列，窄窗口自动减列，不产生横向滚动。
+- 布局用 Flexbox `flex-wrap` + 固定瓦片宽度 + `justify-content: center`，容器宽度上限压到 5 列：窄窗口自动减列、不产生横向滚动，不足 10 个瓦片时最后一行仍然居中。
 
 ### 设置弹窗
 
