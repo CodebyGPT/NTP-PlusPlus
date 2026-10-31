@@ -551,6 +551,24 @@ body.ntp-firefox-style .ntp-tile-link:focus-visible .ntp-tile-icon {
   block-size: var(--ntp-card-favicon-size);
 }
 
+/* Stands in for the icon on pages that have none, like chrome://settings. */
+.ntp-card-bar-letter {
+  flex: 0 0 auto;
+  inline-size: var(--ntp-card-favicon-size);
+  block-size: var(--ntp-card-favicon-size);
+  border-radius: 50%;
+  background-color: var(--ntp-card-snapshot-bg);
+  color: var(--ntp-card-muted);
+  font-size: calc(var(--ntp-card-favicon-size) * 0.7);
+  font-weight: 600;
+  line-height: var(--ntp-card-favicon-size);
+  text-align: center;
+}
+
+.ntp-card-bar.has-favicon .ntp-card-bar-letter {
+  display: none;
+}
+
 /* The character limit is computed in JS; this ellipsis only catches the frame
    between a resize and the next measurement. */
 .ntp-card-label {

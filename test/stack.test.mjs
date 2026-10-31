@@ -78,9 +78,14 @@ const sessions = [
   { window: { sessionId: 'w1', tabs: [] } },
   { tab: { sessionId: 's2', url: 'https://b.example/page' } },
   { tab: { sessionId: 's3', title: 'Local', url: 'file:///tmp/x' } },
+  { tab: { sessionId: 's4', title: 'Settings', url: 'chrome://settings/' } },
+  { tab: { sessionId: 's5', title: 'New Tab', url: 'chrome://newtab/' } },
+  { tab: { sessionId: 's6', title: 'Blank', url: 'about:blank' } },
+  { tab: { sessionId: 's7', title: 'Data', url: 'data:text/html,x' } },
 ];
 
-// Window sessions and non-web tabs have no card to show.
+// Window sessions, the browser's own empty pages and non-restorable schemes
+// have no card to show. Privileged pages do: the browser restores those too.
 assert.deepEqual(toRecentSessions(sessions), [
   { sessionId: 's1', title: 'Alpha', url: 'https://a.example/' },
   {
@@ -88,6 +93,8 @@ assert.deepEqual(toRecentSessions(sessions), [
     title: 'https://b.example/page',
     url: 'https://b.example/page',
   },
+  { sessionId: 's3', title: 'Local', url: 'file:///tmp/x' },
+  { sessionId: 's4', title: 'Settings', url: 'chrome://settings/' },
 ]);
 
 const snapshots = [
@@ -100,11 +107,14 @@ const snapshots = [
 const cards = buildRecentCards(sessions, snapshots, 3);
 assert.deepEqual(
   cards.map((card) => card.sessionId),
-  ['s1', 's2'],
+  ['s1', 's2', 's3'],
 );
 assert.equal(cards[0].snapshot, 'data:a1');
 assert.equal(cards[1].snapshot, 'data:b1');
 assert.equal(cards[1].title, 'https://b.example/page');
+// Nothing was ever captured for a local file, so it keeps its own card anyway.
+assert.equal(cards[2].snapshot, undefined);
+assert.equal(cards[2].url, 'file:///tmp/x');
 
 assert.equal(buildRecentCards(sessions, snapshots, 1).length, 1);
 

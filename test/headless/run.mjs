@@ -2092,6 +2092,70 @@ async function cardsScenario(page, errors) {
     return `1 card after change, saturate ${alone}`;
   });
 
+
+  await check('cards', 'privileged pages get a card with a letter icon', async () => {
+    // Privileged pages can never be captured, and the favicon store only knows
+    // web pages, so both the bar and the snapshot fall back to the initial.
+    await page.evaluate(`(() => {
+      const api = globalThis.browser ?? globalThis.chrome;
+      api.sessions.getRecentlyClosed = async () => [
+        { tab: { sessionId: 's-priv', title: 'Settings', url: 'chrome://settings/' } },
+        { tab: { sessionId: 's-prefs', title: 'Preferences', url: 'about:preferences' } },
+        { tab: { sessionId: 's-blank', title: 'New Tab', url: 'chrome://newtab/' } },
+        { tab: { sessionId: 's-data', title: 'Data', url: 'data:text/html,x' } },
+      ];
+      api.sessions.restore = async (sessionId) => {
+        globalThis.__restoredSession = sessionId;
+      };
+      api.runtime.sendMessage = async () => ({ snapshots: [] });
+      globalThis.__restoredSession = undefined;
+      const select = document.getElementById('opt-recent-count');
+      select.value = '3';
+      select.dispatchEvent(new Event('change'));
+    })()`);
+    await page.waitFor(`document.querySelectorAll('.ntp-card').length === 2`, {
+      timeout: 3000,
+      label: 'two privileged cards',
+    });
+
+    const info = await page.evaluate(`(() => {
+      const cards = [...document.querySelectorAll('.ntp-card')];
+      const newest = cards[cards.length - 1];
+      const bar = newest.querySelector('.ntp-card-bar');
+      const letter = bar.querySelector('.ntp-card-bar-letter');
+      const placeholder = newest.querySelector('.ntp-card-placeholder-letter');
+      return {
+        count: cards.length,
+        urls: cards.map((card) =>
+          card.querySelector('.ntp-card-url').textContent),
+        href: newest.querySelector('.ntp-card-open').getAttribute('href'),
+        letter: letter ? letter.textContent : '',
+        favicons: bar.querySelectorAll('.ntp-card-favicon').length,
+        placeholder: placeholder ? placeholder.textContent : '',
+        snapshots: document.querySelectorAll('.ntp-card-snapshot img').length,
+      };
+    })()`);
+
+    assert(info.count === 2, `skipped pages still rendered: ${info.urls}`);
+    assert(
+      info.urls[0] === 'about:preferences' && info.urls[1] === 'chrome://settings/',
+      `wrong order: ${info.urls}`,
+    );
+    assert(info.href === 'chrome://settings/', `href is ${info.href}`);
+    assert(info.letter === 'S', `bar letter is "${info.letter}"`);
+    assert(info.favicons === 0, `${info.favicons} favicons on a privileged card`);
+    assert(info.placeholder === 'S', `placeholder is "${info.placeholder}"`);
+    assert(info.snapshots === 0, `${info.snapshots} snapshots on a privileged card`);
+
+    await recordScreenshot(page, 'cards', 'chrome-cards-privileged.png');
+
+    await page.evaluate(`document.querySelectorAll('.ntp-card-open')[1].click()`);
+    const restored = await page.evaluate(`globalThis.__restoredSession`);
+    assert(restored === 's-priv', `restored ${restored}`);
+
+    return `2 cards, no favicon, letter "${info.letter}"`;
+  });
+
   await check('cards', 'no uncaught page errors', async () => {
     assert(
       errors.errors.length === 0,

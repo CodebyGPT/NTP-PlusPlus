@@ -287,9 +287,23 @@ function faviconSource(tile) {
     return undefined;
   }
 
+  // The favicon store only knows web pages: ask it about chrome://settings and
+  // it answers with its generic globe, which would be a lie. The letter stands
+  // in instead.
+  if (tile.sourceUrl && !isWebUrl(tile.sourceUrl)) {
+    return undefined;
+  }
+
   // Chromium needs the "favicon" permission for this internal endpoint.
   const endpoint = extensionApi.runtime.getURL(FAVICON_ENDPOINT);
   return `${endpoint}?pageUrl=${encodeURIComponent(tile.sourceUrl)}&size=${FAVICON_SIZE}`;
+}
+
+// A first letter for anything without an icon: the site's host, or the text
+// itself when the URL has no host to speak of.
+function initialOf(url) {
+  const host = hostOf(url) || url;
+  return host.slice(0, 1).toUpperCase() || '?';
 }
 
 function createTileElement(tile) {
@@ -497,13 +511,13 @@ function setupSettings() {
 
 // The copy glyph lives in a <template> in the HTML: inline SVG markup parses
 // into the SVG namespace there, so no xmlns string is needed in JS.
-function createPlaceholderIcon(source) {
+function createPlaceholderIcon(source, url) {
   const icon = document.createElement('img');
   icon.className = 'ntp-card-placeholder';
   icon.alt = '';
   icon.width = FAVICON_SIZE;
   icon.height = FAVICON_SIZE;
-  icon.addEventListener('error', () => icon.remove());
+  icon.addEventListener('error', () => icon.replaceWith(createPlaceholderLetter(url)));
   icon.src = source;
   return icon;
 }
@@ -514,8 +528,7 @@ function createPlaceholderLetter(url) {
   const letter = document.createElement('span');
   letter.className = 'ntp-card-placeholder-letter';
   letter.setAttribute('aria-hidden', 'true');
-  const host = hostOf(url) || url;
-  letter.textContent = host.slice(0, 1).toUpperCase();
+  letter.textContent = initialOf(url);
   return letter;
 }
 
@@ -543,10 +556,17 @@ function createCardElement(card, stackIndex) {
     image.alt = '';
     image.width = FAVICON_SIZE;
     image.height = FAVICON_SIZE;
+    image.addEventListener('load', () => bar.classList.add('has-favicon'));
     image.addEventListener('error', () => image.remove());
     image.src = source;
     bar.append(image);
   }
+
+  const letter = document.createElement('span');
+  letter.className = 'ntp-card-bar-letter';
+  letter.setAttribute('aria-hidden', 'true');
+  letter.textContent = initialOf(card.url);
+  bar.append(letter);
 
   const label = document.createElement('span');
   label.className = 'ntp-card-label';
@@ -569,7 +589,9 @@ function createCardElement(card, stackIndex) {
   } else {
     snapshot.classList.add('is-empty');
     snapshot.append(
-      source ? createPlaceholderIcon(source) : createPlaceholderLetter(card.url),
+      source
+        ? createPlaceholderIcon(source, card.url)
+        : createPlaceholderLetter(card.url),
     );
   }
 

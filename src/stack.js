@@ -1,11 +1,47 @@
-import { isWebUrl } from './topsites.js';
-
 export const SNAPSHOT_SLOTS = 3;
 export const TITLE_SEPARATOR = ' - ';
 export const ELLIPSIS = '…';
 
 const MIN_CHAR_LIMIT = 1;
 const TITLE_AND_URL_PARTS = 2;
+
+// Cards can point at privileged pages too: the browser restores those happily,
+// they just can never be captured. Only its own empty pages are dropped, since
+// a card for "New Tab" carries no information and would push a real one out.
+const SKIPPED_URLS = [
+  'about:blank',
+  'about:newtab',
+  'about:home',
+  'chrome-search://',
+  'chrome://newtab',
+  'edge://newtab',
+  'brave://newtab',
+  'vivaldi://newtab',
+];
+const UNRESTORABLE_PROTOCOLS = new Set(['data:', 'blob:', 'javascript:']);
+
+// Firefox has about:config, about:preferences and friends; Chromium has
+// chrome://, edge://, and so on. All of them restore fine, so anything that
+// parses as a URL and is not one of the skips above becomes a card.
+export function isCardUrl(value) {
+  if (typeof value !== 'string') {
+    return false;
+  }
+
+  let parsed;
+  try {
+    parsed = new URL(value);
+  } catch {
+    return false;
+  }
+
+  if (UNRESTORABLE_PROTOCOLS.has(parsed.protocol)) {
+    return false;
+  }
+
+  return !SKIPPED_URLS.some((prefix) => value.startsWith(prefix));
+}
+
 
 // Unknown ring shapes come from callers that were never populated, not from
 // bad data, so a fresh ring is enough instead of throwing.
@@ -71,7 +107,7 @@ export function toRecentSessions(sessions) {
 
   for (const entry of sessions ?? []) {
     const tab = entry?.tab;
-    if (!tab || typeof tab.sessionId !== 'string' || !isWebUrl(tab.url)) {
+    if (!tab || typeof tab.sessionId !== 'string' || !isCardUrl(tab.url)) {
       continue;
     }
 
