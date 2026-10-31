@@ -19,11 +19,11 @@
   --ntp-page-padding: clamp(1rem, 4vw, 3rem);
   --ntp-tile-width: clamp(4.5rem, 17vw, 6.5rem);
   --ntp-tile-gap: clamp(0.5rem, 1.5vw, 1.25rem);
-  --ntp-tile-radius: 2px;
+  --ntp-tile-radius: 3px;
   --ntp-tile-icon-size: 2.5rem;
   --ntp-tile-icon-radius: 50%;
   --ntp-tile-icon-bg: rgb(0 0 0 / 6%);
-  --ntp-tile-icon-hover-scale: 1.1;
+  --ntp-tile-icon-hover-scale: 1.3;
   --ntp-tile-bg-hover: rgb(0 0 0 / 8%);
   --ntp-tile-fg: #26262c;
   --ntp-tile-muted: #62626e;

@@ -778,6 +778,41 @@ async function chromeScenario(page, errors) {
 
   await check(
     'chrome',
+    'hovering a tile draws the 3px tile background',
+    async () => {
+      const point = await page.evaluate(`(() => {
+        const tile = document.querySelector('#ntp-tiles .ntp-tile');
+        const box = tile.getBoundingClientRect();
+        return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+      })()`);
+      await page.moveMouse(point.x, point.y);
+      const style = await page.waitFor(`(() => {
+        const link = document.querySelector('#ntp-tiles .ntp-tile-link');
+        if (!link || !link.matches(':hover')) return 0;
+        const computed = getComputedStyle(link);
+        return computed.backgroundColor !== 'rgba(0, 0, 0, 0)'
+          ? {
+              background: computed.backgroundColor,
+              radius: computed.borderTopLeftRadius,
+            }
+          : 0;
+      })()`, { label: 'hover tile background' });
+      assert(
+        style.radius === '3px',
+        `hover tile radius was ${style.radius}, expected 3px`,
+      );
+      await recordScreenshot(page, 'chrome', 'chrome-hover.png');
+      await page.moveMouse(4, 4);
+      await page.waitFor(`(() => {
+        const link = document.querySelector('#ntp-tiles .ntp-tile-link');
+        return link && getComputedStyle(link).backgroundColor === 'rgba(0, 0, 0, 0)';
+      })()`, { label: 'hover tile background cleared' });
+      return `3px radius, ${style.background}`;
+    },
+  );
+
+  await check(
+    'chrome',
     'tile style switch applies the Firefox style immediately',
     async () => {
       await page.evaluate(`(() => {
@@ -948,6 +983,12 @@ async function firefoxScenario(page, errors) {
         return getComputedStyle(button).opacity === '1' &&
           transform.startsWith('matrix(') ? { transform } : 0;
       })()`, { label: 'hover reveals remove button and scales icon' });
+      const scale = Number.parseFloat(hovered.transform.slice('matrix('.length));
+      assert(
+        Math.abs(scale - 1.3) < 0.01,
+        `icon hover scale was ${scale}, expected 1.3`,
+      );
+      await recordScreenshot(page, 'firefox', 'firefox-hover.png');
 
       await page.moveMouse(4, 4);
       await page.waitFor(`(() => {
