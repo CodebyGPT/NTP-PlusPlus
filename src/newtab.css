@@ -41,6 +41,7 @@
 
   /* Firefox-style tiles: square-ish icon backing, no tile background. */
   --ntp-firefox-tile-icon-radius: 8px;
+  --ntp-firefox-tile-icon-shadow: 0 2px 8px rgb(0 0 0 / 28%);
 
   /* Settings button and dialog. */
   --ntp-settings-size: 2.75rem;
@@ -62,6 +63,7 @@
   :root {
     --ntp-bg: var(--ntp-bg-dark);
     --ntp-tile-icon-bg: rgb(255 255 255 / 10%);
+    --ntp-firefox-tile-icon-shadow: 0 2px 10px rgb(0 0 0 / 55%);
     --ntp-tile-bg-hover: rgb(255 255 255 / 12%);
     --ntp-tile-fg: #f2f2f6;
     --ntp-tile-muted: #b6b6c2;
@@ -148,7 +150,9 @@ body {
   block-size: var(--ntp-tile-icon-size);
   border-radius: var(--ntp-tile-icon-radius);
   background-color: var(--ntp-tile-icon-bg);
-  transition: transform var(--ntp-transition) ease;
+  transition:
+    transform var(--ntp-transition) ease,
+    box-shadow var(--ntp-transition) ease;
 }
 
 .ntp-tile-favicon {
@@ -212,6 +216,7 @@ body.ntp-firefox-style .ntp-tile-title {
 body.ntp-firefox-style .ntp-tile-link:hover .ntp-tile-icon,
 body.ntp-firefox-style .ntp-tile-link:focus-visible .ntp-tile-icon {
   transform: scale(var(--ntp-tile-icon-hover-scale));
+  box-shadow: var(--ntp-firefox-tile-icon-shadow);
 }
 
 .ntp-tile-remove {

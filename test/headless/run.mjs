@@ -1090,9 +1090,15 @@ async function firefoxScenario(page, errors) {
       const atRest = await page.evaluate(`(() => {
         const tile = document.querySelector('#ntp-tiles .ntp-tile');
         const button = tile?.querySelector('.ntp-tile-remove');
-        return button ? getComputedStyle(button).opacity : null;
+        const icon = tile?.querySelector('.ntp-tile-icon');
+        if (!button || !icon) return null;
+        return {
+          opacity: getComputedStyle(button).opacity,
+          shadow: getComputedStyle(icon).boxShadow,
+        };
       })()`);
-      assert(atRest === '0', `remove button opacity at rest was ${atRest}`);
+      assert(atRest?.opacity === '0', `remove button opacity at rest was ${atRest?.opacity}`);
+      assert(atRest?.shadow === 'none', `icon shadow at rest was ${atRest?.shadow}`);
 
       const point = await page.evaluate(`(() => {
         const tile = document.querySelector('#ntp-tiles .ntp-tile');
@@ -1106,23 +1112,33 @@ async function firefoxScenario(page, errors) {
         const icon = tile?.querySelector('.ntp-tile-icon');
         if (!button || !icon) return 0;
         const transform = getComputedStyle(icon).transform;
+        const shadow = getComputedStyle(icon).boxShadow;
         return getComputedStyle(button).opacity === '1' &&
-          transform.startsWith('matrix(') ? { transform } : 0;
-      })()`, { label: 'hover reveals remove button and scales icon' });
+          transform.startsWith('matrix(') && shadow !== 'none'
+          ? { transform, shadow }
+          : 0;
+      })()`, { label: 'hover reveals remove button, scales icon and adds a shadow' });
       const scale = Number.parseFloat(hovered.transform.slice('matrix('.length));
       assert(
         Math.abs(scale - 1.3) < 0.01,
         `icon hover scale was ${scale}, expected 1.3`,
       );
+      assert(
+        hovered.shadow.includes('0, 0, 0'),
+        `icon hover shadow was ${hovered.shadow}`,
+      );
       await recordScreenshot(page, 'firefox', 'firefox-hover.png');
 
       await page.moveMouse(4, 4);
       await page.waitFor(`(() => {
-        const button = document.querySelector('#ntp-tiles .ntp-tile-remove');
-        return button && getComputedStyle(button).opacity === '0';
-      })()`, { label: 'remove button hidden again' });
+        const tile = document.querySelector('#ntp-tiles .ntp-tile');
+        const button = tile?.querySelector('.ntp-tile-remove');
+        const icon = tile?.querySelector('.ntp-tile-icon');
+        return button && getComputedStyle(button).opacity === '0' &&
+          getComputedStyle(icon).boxShadow === 'none';
+      })()`, { label: 'remove button hidden and shadow gone again' });
 
-      return `opacity 0 -> 1 (${hovered.transform}) -> 0`;
+      return `opacity 0 -> 1 (${hovered.transform}, ${hovered.shadow}) -> 0`;
     },
   );
 
