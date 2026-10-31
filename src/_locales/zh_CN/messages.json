@@ -40,5 +40,14 @@
   },
   "optionFirefoxStyle": {
     "message": "使用 Firefox 风格瓦片"
+  },
+  "recentCardsLabel": {
+    "message": "最近关闭的标签页"
+  },
+  "copyLink": {
+    "message": "复制链接"
+  },
+  "optionRecentCount": {
+    "message": "最近关闭卡片最大显示数"
   }
 }

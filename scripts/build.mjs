@@ -6,10 +6,12 @@ const SOURCE_DIR = fileURLToPath(new URL('../src/', import.meta.url));
 const DIST_DIR = fileURLToPath(new URL('../dist/', import.meta.url));
 
 const SHARED_FILES = [
+  'background.js',
   'i18n.js',
   'newtab.css',
   'newtab.html',
   'newtab.js',
+  'stack.js',
   'topsites.js',
 ];
 
@@ -128,16 +130,20 @@ async function main() {
   const baseManifest = JSON.parse(await readSource('manifest.json'));
   await validateLocales(baseManifest);
   const targets = {
+    // Chrome 121+ only honours service_worker, Firefox has no service_worker
+    // support and skips the whole background when one is declared.
     chrome: {
       ...baseManifest,
       minimum_chrome_version: CHROME_MIN_VERSION,
-      permissions: ['tabs', 'topSites', 'favicon'],
+      permissions: ['sessions', 'storage', 'tabs', 'topSites', 'favicon'],
       host_permissions: ['<all_urls>'],
+      background: { service_worker: 'background.js' },
     },
     firefox: {
       ...baseManifest,
-      permissions: ['theme', 'tabs', 'topSites', 'bookmarks'],
+      permissions: ['sessions', 'storage', 'theme', 'tabs', 'topSites', 'bookmarks'],
       host_permissions: ['<all_urls>'],
+      background: { scripts: ['background.js'] },
       browser_specific_settings: {
         gecko: {
           id: FIREFOX_ADDON_ID,

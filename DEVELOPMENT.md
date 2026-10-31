@@ -83,6 +83,20 @@ npm run build
 - 不主动添加用户没有要求的说明文字。`manifest.json` 的 `description` 这类展示元数据默认不写，除非用户明确要求。
 - 开发注释、诊断日志和开发者文档不受此限；但注释也只解释“为什么”，不复述代码。
 
+### 10. 重大修改后用无头浏览器验证
+
+- 每次完成重大修改（布局、交互、渲染逻辑、manifest 或构建脚本）并 `npm run build` 后，先执行 `node test/headless/run.mjs`，确认无头浏览器里的实际渲染和交互与预期一致，再继续下一项修改。
+- `npm test` 通过、代码读起来没问题、构建成功，都不算验证；必须真正跑起页面并核对断言，必要时用 `--only=<场景>` 定位。
+- 断言覆盖不到的行为，先补断言再改代码，不靠肉眼或推测下结论。
+- 无头检查没全绿就不算完成：先修到全绿，不在失败结果上叠加新改动。截图产物在 `test/headless/out/`，不入库。
+- 无法用无头浏览器覆盖的改动（如 Firefox 真实主题同步），在提交说明里写明手工验证步骤和结论。
+
+### 11. token 管够，不为省成本砍步骤
+
+- 该读的文件、该查的 MDN 文档、该跑的检查、该看的完整失败输出，都要完整读完跑完，不为省 token 跳过或只看片段。
+- 多文件改动前先读全所有相关文件再动手；不靠猜测改代码，也不写“应该没问题”当结论。
+- 结论要有证据：命令、输出、截图路径或文档位置。宁可多验证几轮，也不要猜错后返工。
+
 ## 当前架构
 
 ```text
@@ -92,15 +106,18 @@ src/
     zh_CN/messages.json  简体中文文案
     ru/messages.json     俄文文案
   manifest.json          公共 manifest 字段
+  background.js          后台脚本：截图、720p 压缩、最近关闭快照槽位
   i18n.js                t()、data-i18n 与 data-i18n-aria
-  newtab.html            瓦片网格、设置按钮与设置弹窗
-  newtab.css             纯色背景、瓦片、设置弹窗、深浅色回退、视口自适应
-  newtab.js              主题同步 + 瓦片渲染 + 设置 + 页面内关闭逻辑
+  newtab.html            瓦片网格、最近关闭卡片、设置按钮与设置弹窗
+  newtab.css             纯色背景、瓦片、卡片、设置弹窗、深浅色回退、视口自适应
+  newtab.js              主题同步 + 瓦片渲染 + 卡片渲染 + 设置 + 页面内关闭逻辑
+  stack.js               最近关闭卡片纯函数（会话规整、快照配对、字符数上限）
   topsites.js            常用网站纯函数（过滤、去重、域名收敛、匹配）
 scripts/
   build.mjs              生成 dist/chrome 与 dist/firefox
 test/
   i18n.test.mjs          i18n 辅助函数检查
+  stack.test.mjs         最近关闭卡片纯函数检查
   topsites.test.mjs      常用网站纯函数检查
   headless/              无 npm 依赖的 CDP 无头浏览器检查（不入库截图产物）
 ```
@@ -139,6 +156,21 @@ test/
 - 布局用 Flexbox `flex-wrap` + 固定瓦片宽度（`--ntp-tile-width`，上限 7rem，对齐 Chromium 的 112px 瓦片）+ `justify-content: center`，容器宽度上限压到 5 列：窄窗口自动减列、不产生横向滚动，不足 10 个瓦片时最后一行仍然居中。
 - 瓦片链接不设左右内边距，标题按满瓦片宽度省略，能被截断的字符更多；相邻标题之间靠 flex `gap` 保持间隔，不会重叠或越出安全区。
 
+### 最近关闭的标签页卡片
+
+- 布局：`main` 是纵向 flex，瓦片固定在上方，`#ntp-recent` 吃掉剩余高度。不再垂直居中，卡片再高也不会把瓦片顶出视口。
+- 卡片顺序：DOM 顺序是“最旧 → 最新”，靠绘制顺序让最新的在最上层（`z-index` 不用手写，定位元素本身按文档顺序绘制）。每张卡片用内联 `--ntp-card-index` 向上抬 `index × --ntp-card-bar-block-size`，于是只露出标题栏；`#ntp-recent` 的 `margin-block-start` 预留这段被抬上去的高度。
+- 悬停露出：纯 CSS，`.ntp-card:hover ~ .ntp-card` 把叠在上面的卡片 `translateY(--ntp-card-exit-distance)` 移出视口，`--ntp-card-ease` 用 `cubic-bezier(0.22, 1, 0.36, 1)`（缓出，避免线性平移的生硬感）。同时给这些卡片 `pointer-events: none`：滑走的卡片会经过光标下方，否则 hover 目标跳到它身上，状态在两个元素之间来回抖动。
+- 恢复：整张卡片（标题栏 + 快照）是一个 `<a>`，`click` 时 `preventDefault()` 再 `sessions.restore(sessionId)`；恢复失败（会话已被清理）就退回到 `location.href = url`，仍然能打开这个页面。
+- 复制链接按钮是那个 `<a>` 的**兄弟节点**（绝对定位到标题栏右侧），不能嵌在 `<a>` 里——`<a>` 内嵌 `<button>` 是非法结构。图标直接取 `Doc/IconPark-master` 里的 `Edit/copy.svg`（Apache-2.0），去掉 `xmlns` 放进 `newtab.html` 的 `<template id="ntp-card-copy-icon">`：HTML 解析器会自动把它放进 SVG 命名空间，于是 JS 里不需要 `createElementNS` 和 `http://www.w3.org/2000/svg` 这个会被构建规则拦掉的字符串，克隆模板即可。`fill: none` + `stroke: currentcolor` 让它跟随按钮颜色。
+- 没有快照时（标签页还没机会被截到）快照区居中显示站点 favicon，尺寸 `--ntp-card-placeholder-size`（2.5rem）比标题栏里的大一圈，但远小于卡片：占位图**不能**铺满快照区，`object-fit: contain` 保持图标比例，`opacity: 0.55` 让它退到背景。注意快照图片的 `inline-size: 100%` 规则必须写成 `.ntp-card-snapshot img:not(.ntp-card-placeholder)`，否则同属性选择器的特异度会压过占位图尺寸，把它拉满整张卡片。Chromium 走 `/_favicon/`；Firefox 的 `sessions` 不带内联图标，而 `favIconUrl` 是远程地址（违反“不加载远程图片”），所以退化成站点首字母。
+- 字符数上限：`ResizeObserver`（事件驱动，只在宽度真的变化时触发）监听 `#ntp-recent` 宽度 → 一次布局读 `label.clientWidth`（已扣掉复制按钮让出的位置）→ 隐藏的 `.ntp-card-measure` 量平均字符宽 → `charLimitForWidth()` 得到单侧上限 → 标题和地址各自 `limitLabel()`。CSS 的 `text-overflow: ellipsis` 只是兜底，覆盖“resize 到下一次测量之间”的那一帧。上限不硬编码，宽窄窗口各自算出合适的值。
+- 快照：`background.js` 在标签页变为可见（`tabs.onActivated`、`tabs.onUpdated` 到 `complete`、`windows.onFocusChanged`）时调用 `tabs.captureVisibleTab`，只截当前可见页——已关闭的标签页事后无法补截，所以必须预热。>720p 才用 `createImageBitmap` + `OffscreenCanvas` 缩到 1280×720，任何失败都静默回退原图。
+- 快照槽位：`storage.session`（浏览器只放内存、不落盘、关闭即清空）里维护两个数组：打开中的标签页（按 `tabId` 去重，上限 8 条）和已关闭的环形槽（上限 3 条，按 `url` 去重后覆盖最旧的）。`tabs.onRemoved` 把开着的条目挪进环形槽，槽位满就自然挤掉最旧的，不需要任何定期清理逻辑，因此不存在“异常没清掉导致内存膨胀”。Firefox < 115 没有 `storage.session`，回退成 worker 内的普通对象。
+- 新标签页通过 `runtime.sendMessage({ type: 'ntp:snapshots' })` 取快照，按 `url` 与会话列表配对；同一个 `url` 的多个会话只消费一份快照。
+- `background.js` 是不含 `import`/`export` 的经典脚本：Chrome 只能加载 `service_worker`，Firefox 不支持 `service_worker`（109–120 甚至会因为声明了它而完全不启动后台），所以 `build.mjs` 按 target 分别写 `background.service_worker` 与 `background.scripts`。
+- 新标签页不自己截图：截图需要标签页可见，而新标签页一出现就是当前页，截到的是它自己。
+
 ### 设置弹窗
 
 - 原生 `<dialog>` + `showModal()`；`::backdrop` 压暗背景；点背景（事件目标就是 dialog 本身）或关闭按钮关闭。
@@ -146,6 +178,7 @@ test/
 - “排除已收藏的网站”：`bookmarks.getTree()` 递归收集 http/https 条目的主机名并去掉 `www.` 前缀，按主机名精确匹配（`baike.baidu.com` 不会被 `baidu.com` 的收藏跳过）。
 - Chromium 上该选项置灰禁用：Chromium 的 topSites 只有 10 条，排除后瓦片会留空。这只是前端 `disabled`，不做防止强行开启的防御逻辑。
 - “Firefox 风格瓦片”：只切 `body` 的 class，纯视觉开关，不影响任何列表逻辑；默认跟随浏览器判定。
+- “最近关闭卡片最大显示数”：下拉 1/2/3，存 `ntp-recent-count`，默认 3。改动后重新取一次列表重渲染，多出的卡片直接不渲染（不是隐藏），所以 DOM 里永远不会超过选中的张数。
 
 ## 构建与加载
 
@@ -174,4 +207,13 @@ npm run build
 - [ ] 设置里切换瓦片风格立即生效，刷新后仍保持
 - [ ] Firefox 下删除瓦片后由溢出站点补位，刷新后仍隐藏
 - [ ] 设置弹窗即时生效，点背景和关闭按钮都能关闭
-- [ ] `npm test` 与 `npm run build` 通过；`test/headless/run.mjs` 全绿
+- [ ] 瓦片在上方、最近关闭卡片在下方层叠，默认只露出标题栏，最新的在最上层
+- [ ] 悬停第二/第三张卡片时，压在它上面的卡片带缓动滑出视口，光标指的那张完整露出（含快照）
+- [ ] 标题与链接共用同一个字符数上限，窗口变窄时不刷新页面也会收得更紧
+- [ ] 点卡片恢复被关闭的标签页；点复制按钮只复制链接、不触发恢复
+- [ ] 没有快照的卡片在快照区居中显示 favicon（Firefox 显示首字母），不是一片空白，也没有被拉满整张卡片
+- [ ] 快照只在内存里（重启浏览器后为空），超 720p 的已压到 720p
+- [ ] 设置里改“最近关闭卡片最大显示数”立即生效，刷新后仍保持
+- [ ] 窄窗口下瓦片加卡片仍无滚动条、卡片区不被压扁成 0 高
+- [ ] `npm test` 与 `npm run build` 通过；`test/headless/run.mjs` 全绿，实际渲染与预期一致
+- [ ] 重大修改是逐项验证过的，不是在未验证的改动上继续叠加

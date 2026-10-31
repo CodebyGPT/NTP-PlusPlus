@@ -7,7 +7,16 @@
     <link rel="stylesheet" href="newtab.css">
   </head>
   <body>
-    <ul id="ntp-tiles" class="ntp-tiles"></ul>
+    <main class="ntp-main">
+      <ul id="ntp-tiles" class="ntp-tiles"></ul>
+
+      <section
+        id="ntp-recent"
+        class="ntp-recent"
+        data-i18n-aria="recentCardsLabel"
+        aria-label="Recently closed tabs"
+      ></section>
+    </main>
 
     <button
       id="ntp-settings-button"
@@ -47,7 +56,23 @@
         <input id="opt-firefox-style" type="checkbox">
         <span data-i18n="optionFirefoxStyle">Use Firefox-style tiles</span>
       </label>
+      <label class="ntp-settings-option">
+        <span data-i18n="optionRecentCount">Recently closed cards</span>
+        <select id="opt-recent-count" class="ntp-settings-select">
+          <option value="1">1</option>
+          <option value="2">2</option>
+          <option value="3">3</option>
+        </select>
+      </label>
     </dialog>
+
+    <!-- IconPark "copy" (Apache-2.0), recolored to currentColor. -->
+    <template id="ntp-card-copy-icon">
+      <svg class="ntp-card-copy-icon" viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+        <path d="M13 12.4316V7.8125C13 6.2592 14.2592 5 15.8125 5H40.1875C41.7408 5 43 6.2592 43 7.8125V32.1875C43 33.7408 41.7408 35 40.1875 35H35.5163" />
+        <path d="M32.1875 13H7.8125C6.2592 13 5 14.2592 5 15.8125V40.1875C5 41.7408 6.2592 43 7.8125 43H32.1875C33.7408 43 35 41.7408 35 40.1875V15.8125C35 14.2592 33.7408 13 32.1875 13Z" />
+      </svg>
+    </template>
 
     <script type="module" src="newtab.js"></script>
   </body>

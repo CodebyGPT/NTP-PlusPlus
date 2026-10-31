@@ -106,7 +106,7 @@ async function check(scenario, name, fn) {
 function parseOnly(argv) {
   const arg = argv.find((item) => item.startsWith('--only='));
   if (!arg) {
-    return ['chrome', 'firefox', 'layout'];
+    return ['chrome', 'firefox', 'layout', 'cards'];
   }
   const names = arg
     .slice('--only='.length)
@@ -114,11 +114,11 @@ function parseOnly(argv) {
     .map((item) => item.trim())
     .filter(Boolean);
   const valid = names.filter((name) =>
-    ['chrome', 'firefox', 'layout'].includes(name),
+    ['chrome', 'firefox', 'layout', 'cards'].includes(name),
   );
   if (valid.length === 0) {
     throw new Error(
-      `--only expects chrome, firefox or layout (got "${arg}")`,
+      `--only expects chrome, firefox, layout or cards (got "${arg}")`,
     );
   }
   return valid;
@@ -285,6 +285,54 @@ function buildChromePreload() {
 })();`;
 }
 
+// Recently closed cards. A separate preload keeps the tile and layout
+// scenarios on an empty sessions list, so their assertions stay unchanged.
+const CARD_LONG_TITLE =
+  'A deliberately long headline that cannot possibly fit in a title bar and must be folded away';
+const CARD_LONG_URL =
+  'https://alpha.example.com/a/very/long/path/that/does/not/fit/in/the/title/bar/either';
+const CARD_SNAPSHOT =
+  'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+
+const CARD_SESSIONS = [
+  { tab: { sessionId: 's-newest', title: 'Zeta', url: 'https://zeta.example.com/six' } },
+  { tab: { sessionId: 's-middle', title: 'Eta', url: 'https://eta.example.com/seven' } },
+  { tab: { sessionId: 's-oldest', title: CARD_LONG_TITLE, url: CARD_LONG_URL } },
+  { tab: { sessionId: 's-extra', title: 'Fourth', url: 'https://iota.example.com/nine' } },
+  { window: { sessionId: 's-window' } },
+];
+const CARD_SNAPSHOTS = [{ url: 'https://eta.example.com/seven', dataUrl: CARD_SNAPSHOT }];
+
+function buildCardsPreload(catalog) {
+  return `${buildBrowserMock(catalog)}
+(() => {
+  // Firefox user agent: sessions carry no inline icon, so cards render the
+  // site initial. The icon branch is covered by the cascade probe below.
+  const sessions = ${JSON.stringify(CARD_SESSIONS)};
+  const snapshots = ${JSON.stringify(CARD_SNAPSHOTS)};
+  const api = globalThis.browser;
+  api.sessions = {
+    async getRecentlyClosed() {
+      return sessions;
+    },
+    async restore(sessionId) {
+      globalThis.__restoredSession = sessionId;
+    },
+  };
+  api.runtime.sendMessage = async (message) =>
+    message && message.type === 'ntp:snapshots' ? { snapshots } : undefined;
+})();`;
+}
+
+async function preloadSource(kind) {
+  if (kind === 'chrome') {
+    return buildChromePreload();
+  }
+
+  const catalog = JSON.parse(await readFile(EN_CATALOG_PATH, 'utf8'));
+  return kind === 'cards' ? buildCardsPreload(catalog) : buildBrowserMock(catalog);
+}
+
 function createPage(cdp, sessionId, extensionUrl) {
   const page = {
     cdp,
@@ -444,10 +492,7 @@ async function setPreload(page, kind) {
     return;
   }
 
-  const source =
-    kind === 'firefox'
-      ? buildBrowserMock(JSON.parse(await readFile(EN_CATALOG_PATH, 'utf8')))
-      : buildChromePreload();
+  const source = await preloadSource(kind);
   const result = await page.cdp.send(
     'Page.addScriptToEvaluateOnNewDocument',
     { source },
@@ -1519,6 +1564,278 @@ async function layoutScenario(page, errors) {
   });
 }
 
+function translateY(transform) {
+  const match = /matrix\(([^)]+)\)/.exec(transform ?? '');
+  return match ? Number(match[1].split(',')[5]) : 0;
+}
+
+async function cardsScenario(page, errors) {
+  console.log('\n== Recent cards scenario ==');
+  errors.reset();
+  await loadPage(page, { preload: 'cards', clearStorage: true });
+  await page.waitFor(`document.querySelectorAll('.ntp-card').length === 3`, {
+    timeout: 10000,
+    label: '3 recent cards',
+  });
+  await sleep(300);
+
+  await check('cards', 'caps the stack at 3 and paints the newest on top', async () => {
+    const hrefs = await page.evaluate(
+      `[...document.querySelectorAll('.ntp-card-open')].map((link) => link.href)`,
+    );
+    assert(hrefs.length === 3, `${hrefs.length} cards rendered`);
+    assert(
+      hrefs[2] === 'https://zeta.example.com/six',
+      `top card is ${hrefs[2]}`,
+    );
+    assert(hrefs[0] === CARD_LONG_URL, `bottom card is ${hrefs[0]}`);
+    return hrefs.length + ' cards, newest last';
+  });
+
+  await check('cards', 'long title and url fold with one shared limit', async () => {
+    const info = await page.evaluate(`(() => {
+      const labels = [...document.querySelectorAll('.ntp-card-label')];
+      const oldest = labels[0];
+      const newest = labels[labels.length - 1];
+      return {
+        title: oldest.querySelector('.ntp-card-title').textContent,
+        url: oldest.querySelector('.ntp-card-url').textContent,
+        joined: oldest.textContent,
+        shortTitle: newest.querySelector('.ntp-card-title').textContent,
+        shortUrl: newest.querySelector('.ntp-card-url').textContent,
+      };
+    })()`);
+
+    assert(
+      info.joined.includes(' - '),
+      `title and url are not joined with a separator: ${info.joined}`,
+    );
+    assert(info.title.endsWith('…'), `title not folded: ${info.title}`);
+    assert(info.url.endsWith('…'), `url not folded: ${info.url}`);
+    assert(
+      info.title.length === info.url.length,
+      `folding limits differ: ${info.title.length} vs ${info.url.length}`,
+    );
+    assert(info.shortTitle === 'Zeta', `short title changed: ${info.shortTitle}`);
+    assert(
+      info.shortUrl === 'https://zeta.example.com/six',
+      `short url changed: ${info.shortUrl}`,
+    );
+    return `${info.title.length} characters per field`;
+  });
+
+  await check('cards', 'snapshot lands only on the matching url', async () => {
+    const flags = await page.evaluate(
+      `[...document.querySelectorAll('.ntp-card')].map((card) => Boolean(card.querySelector('.ntp-card-snapshot img:not(.ntp-card-placeholder)')))`,
+    );
+    assert(flags[1] === true, 'the matching card has no snapshot');
+    assert(
+      flags[0] === false && flags[2] === false,
+      `unexpected snapshots: ${flags.join(',')}`,
+    );
+    return flags.join(',');
+  });
+
+  await check('cards', 'missing snapshots fall back to a centered marker', async () => {
+    const info = await page.evaluate(`(async () => {
+      const empty = [...document.querySelectorAll('.ntp-card-snapshot.is-empty')];
+      const first = empty[0];
+      if (!first) return { count: 0 };
+      const letter = first.querySelector('.ntp-card-placeholder-letter');
+      const box = first.getBoundingClientRect();
+      const letterRect = letter?.getBoundingClientRect();
+      // Probe the icon cascade: the real favicon <img> only exists on
+      // Chromium, so a stand-in element proves the rule stays small.
+      const probe = document.createElement('img');
+      probe.className = 'ntp-card-placeholder';
+      probe.src = ${JSON.stringify(CARD_SNAPSHOT)};
+      first.append(probe);
+      await new Promise((resolve) => {
+        requestAnimationFrame(() => requestAnimationFrame(resolve));
+      });
+      const iconRect = probe.getBoundingClientRect();
+      return {
+        count: empty.length,
+        letter: letter?.textContent ?? '',
+        filled: Boolean(first.querySelector('.ntp-card-snapshot img:not(.ntp-card-placeholder)')),
+        iconWidth: Math.round(iconRect.width),
+        iconHeight: Math.round(iconRect.height),
+        boxWidth: Math.round(box.width),
+        boxHeight: Math.round(box.height),
+        letterCenteredX: letterRect
+          ? Math.abs(letterRect.left + letterRect.width / 2 - (box.left + box.width / 2))
+          : 999,
+        letterCenteredY: letterRect
+          ? Math.abs(letterRect.top + letterRect.height / 2 - (box.top + box.height / 2))
+          : 999,
+      };
+    })()`);
+    assert(info.count === 2, `${info.count} empty snapshots`);
+    assert(info.letter.length === 1, `no icon and no initial: '${info.letter}'`);
+    assert(!info.filled, 'the placeholder card also has a snapshot image');
+    assert(
+      info.letterCenteredX < 2 && info.letterCenteredY < 2,
+      `marker off center: ${info.letterCenteredX}x${info.letterCenteredY}`,
+    );
+    assert(
+      info.iconWidth > 8 && info.iconWidth < info.boxWidth / 2,
+      `icon is ${info.iconWidth}x${info.iconHeight} in a ${info.boxWidth}x${info.boxHeight} card`,
+    );
+    return `${info.count} placeholders, icon ${info.iconWidth}px, "${info.letter}" centered`;
+  });
+
+  await check('cards', 'copy button is a sibling, not inside the link', async () => {
+    const info = await page.evaluate(`(() => {
+      const buttons = [...document.querySelectorAll('.ntp-card-copy')];
+      return {
+        count: buttons.length,
+        nested: document.querySelectorAll('.ntp-card-open button').length,
+        label: buttons[0]?.getAttribute('aria-label') ?? '',
+        svg: buttons[0]?.querySelector('svg.ntp-card-copy-icon')?.namespaceURI ?? '',
+        pseudo: getComputedStyle(buttons[0], '::before').content,
+      };
+    })()`);
+    assert(info.count === 3, `${info.count} copy buttons`);
+    assert(info.nested === 0, 'a button is nested inside a card link');
+    assert(info.label.length > 0, 'copy button has no accessible name');
+    assert(
+      info.svg === 'http://www.w3.org/2000/svg',
+      `copy glyph is not an SVG: ${info.svg}`,
+    );
+    assert(info.pseudo === 'none', `copy button still draws a CSS glyph: ${info.pseudo}`);
+    return info.label;
+  });
+
+  await check('cards', 'clicking the card restores its session', async () => {
+    await page.evaluate(`document.querySelectorAll('.ntp-card-open')[2].click()`);
+    const restored = await page.waitFor('globalThis.__restoredSession', {
+      timeout: 3000,
+      label: 'sessions.restore call',
+    });
+    assert(restored === 's-newest', `restored ${restored}`);
+    return restored;
+  });
+
+  await check('cards', 'hovering a lower card slides the ones above away', async () => {
+    const point = await page.evaluate(`(() => {
+      const card = document.querySelectorAll('.ntp-card')[1];
+      const rect = card.getBoundingClientRect();
+      const bar = card.querySelector('.ntp-card-bar').getBoundingClientRect();
+      return { x: Math.round(rect.left + rect.width / 2), y: Math.round(bar.top + bar.height / 2) };
+    })()`);
+
+    await page.cdp.send(
+      'Input.dispatchMouseEvent',
+      { type: 'mouseMoved', x: point.x, y: point.y, button: 'none' },
+      page.sessionId,
+    );
+    await sleep(700);
+
+    const transforms = await page.evaluate(
+      `[...document.querySelectorAll('.ntp-card')].map((card) => getComputedStyle(card).transform)`,
+    );
+    const offsets = transforms.map(translateY);
+
+    assert(offsets[2] > 100, `card above did not move: ${transforms[2]}`);
+    assert(offsets[0] < 0 && offsets[1] < 0, `stack offsets lost: ${offsets.join(',')}`);
+
+    await recordScreenshot(page, 'cards', 'chrome-cards-hover.png');
+
+    await page.cdp.send(
+      'Input.dispatchMouseEvent',
+      { type: 'mouseMoved', x: 2, y: 2, button: 'none' },
+      page.sessionId,
+    );
+    await sleep(700);
+    const reset = await page.evaluate(
+      `getComputedStyle(document.querySelectorAll('.ntp-card')[2]).transform`,
+    );
+    assert(Math.abs(translateY(reset)) < 1, `card did not slide back: ${reset}`);
+    return `slid ${Math.round(offsets[2])}px down`;
+  });
+
+  await check('cards', 'character limit follows the title bar width', async () => {
+    await page.cdp.send(
+      'Emulation.setDeviceMetricsOverride',
+      { width: 420, height: 800, deviceScaleFactor: 1, mobile: false },
+      page.sessionId,
+    );
+    await sleep(500);
+    const narrow = await page.evaluate(`(() => {
+      const label = document.querySelectorAll('.ntp-card-label')[2];
+      const stage = document.getElementById('ntp-recent');
+      return {
+        title: label.querySelector('.ntp-card-title').textContent,
+        url: label.querySelector('.ntp-card-url').textContent,
+        width: label.clientWidth,
+        stageHeight: stage.clientHeight,
+        scrollWidth: document.documentElement.scrollWidth,
+        scrollHeight: document.documentElement.scrollHeight,
+        innerWidth: window.innerWidth,
+        innerHeight: window.innerHeight,
+      };
+    })()`);
+
+    await page.cdp.send(
+      'Emulation.clearDeviceMetricsOverride',
+      {},
+      page.sessionId,
+    );
+    await sleep(500);
+    const wide = await page.evaluate(`(() => {
+      const label = document.querySelectorAll('.ntp-card-label')[2];
+      return {
+        url: label.querySelector('.ntp-card-url').textContent,
+        width: label.clientWidth,
+      };
+    })()`);
+
+    assert(narrow.width < wide.width, `bar did not narrow: ${narrow.width}`);
+    assert(
+      narrow.url.endsWith('…'),
+      `url still fits at ${narrow.width}px: ${narrow.url}`,
+    );
+    assert(
+      wide.url === 'https://zeta.example.com/six',
+      `url stayed folded at ${wide.width}px: ${wide.url}`,
+    );
+    assert(narrow.stageHeight > 0, 'the card stage collapsed at 420px');
+    assert(
+      narrow.scrollWidth <= narrow.innerWidth &&
+        narrow.scrollHeight <= narrow.innerHeight,
+      `narrow viewport scrolls: ${narrow.scrollWidth}x${narrow.scrollHeight} in ${narrow.innerWidth}x${narrow.innerHeight}`,
+    );
+    return `${narrow.width}px folds, ${wide.width}px fits`;
+  });
+
+  await recordScreenshot(page, 'cards', 'chrome-cards.png');
+
+  await check('cards', 'settings limit defaults to 3 and applies 1', async () => {
+    const value = await page.evaluate(
+      `document.getElementById('opt-recent-count').value`,
+    );
+    assert(value === '3', `default is ${value}`);
+    await page.evaluate(`(() => {
+      const select = document.getElementById('opt-recent-count');
+      select.value = '1';
+      select.dispatchEvent(new Event('change'));
+    })()`);
+    await page.waitFor(`document.querySelectorAll('.ntp-card').length === 1`, {
+      timeout: 3000,
+      label: 'one card',
+    });
+    return '1 card after change';
+  });
+
+  await check('cards', 'no uncaught page errors', async () => {
+    assert(
+      errors.errors.length === 0,
+      errors.errors.join(' | ') || 'errors recorded',
+    );
+    return '0 errors';
+  });
+}
+
 function printSummary() {
   const failed = RESULTS.filter((result) => !result.pass);
   const passed = RESULTS.length - failed.length;
@@ -1591,6 +1908,9 @@ async function main() {
     }
     if (only.includes('layout')) {
       await layoutScenario(page, errors);
+    }
+    if (only.includes('cards')) {
+      await cardsScenario(page, errors);
     }
 
     errors.off();

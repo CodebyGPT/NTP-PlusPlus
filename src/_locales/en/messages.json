@@ -40,5 +40,14 @@
   },
   "optionFirefoxStyle": {
     "message": "Use Firefox-style tiles"
+  },
+  "recentCardsLabel": {
+    "message": "Recently closed tabs"
+  },
+  "copyLink": {
+    "message": "Copy link"
+  },
+  "optionRecentCount": {
+    "message": "Recently closed cards shown"
   }
 }

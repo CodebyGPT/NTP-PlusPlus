@@ -5,6 +5,6 @@
   "type": "module",
   "scripts": {
     "build": "node scripts/build.mjs",
-    "test": "node --check src/newtab.js && node --check src/i18n.js && node --check src/topsites.js && node test/i18n.test.mjs && node test/topsites.test.mjs"
+    "test": "node --check src/background.js && node --check src/newtab.js && node --check src/i18n.js && node --check src/stack.js && node --check src/topsites.js && node test/i18n.test.mjs && node test/stack.test.mjs && node test/topsites.test.mjs"
   }
 }

@@ -40,5 +40,14 @@
   },
   "optionFirefoxStyle": {
     "message": "Плитки в стиле Firefox"
+  },
+  "recentCardsLabel": {
+    "message": "Недавно закрытые вкладки"
+  },
+  "copyLink": {
+    "message": "Копировать ссылку"
+  },
+  "optionRecentCount": {
+    "message": "Сколько показывать карточек"
   }
 }

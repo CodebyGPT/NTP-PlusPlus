@@ -39,6 +39,33 @@
   --ntp-focus-ring: #2f6fed;
   --ntp-transition: 120ms;
 
+  /* Recently closed cards: a stack of title bars, each with a page snapshot
+     below. The bar height doubles as the offset between stacked cards. */
+  --ntp-main-gap: clamp(1rem, 3vh, 2.5rem);
+  --ntp-card-max-width: 56rem;
+  --ntp-card-radius: 10px;
+  --ntp-card-bg: #ffffff;
+  --ntp-card-border: rgb(0 0 0 / 12%);
+  --ntp-card-shadow: 0 6px 24px rgb(0 0 0 / 18%);
+  --ntp-card-bar-block-size: 2.25rem;
+  --ntp-card-bar-gap: 0.5rem;
+  --ntp-card-bar-padding: 0.75rem;
+  --ntp-card-bar-font-size: 0.8125rem;
+  --ntp-card-bar-bg: #ffffff;
+  --ntp-card-favicon-size: 1rem;
+  --ntp-card-fg: #26262c;
+  --ntp-card-muted: #62626e;
+  --ntp-card-snapshot-bg: rgb(0 0 0 / 5%);
+  --ntp-card-copy-size: 1.75rem;
+  --ntp-card-copy-radius: 6px;
+  --ntp-card-copy-glyph-size: 0.6875rem;
+  --ntp-card-placeholder-size: 2.5rem;
+  --ntp-card-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --ntp-card-transition: 320ms;
+  --ntp-card-exit-distance: calc(
+    100% + var(--ntp-page-padding) + var(--ntp-card-bar-block-size)
+  );
+
   /* Firefox-style tiles: square-ish icon backing, no tile background. */
   --ntp-firefox-tile-icon-radius: 8px;
   --ntp-firefox-tile-icon-shadow: 0 2px 8px rgb(0 0 0 / 28%);
@@ -71,6 +98,13 @@
     --ntp-tile-remove-fg: #d6d6de;
     --ntp-tile-remove-border: rgb(255 255 255 / 20%);
     --ntp-focus-ring: #8ab4ff;
+    --ntp-card-bg: #2c2b33;
+    --ntp-card-bar-bg: #2c2b33;
+    --ntp-card-border: rgb(255 255 255 / 16%);
+    --ntp-card-shadow: 0 6px 24px rgb(0 0 0 / 55%);
+    --ntp-card-fg: #f2f2f6;
+    --ntp-card-muted: #b6b6c2;
+    --ntp-card-snapshot-bg: rgb(255 255 255 / 6%);
     --ntp-settings-bg: rgb(255 255 255 / 8%);
     --ntp-settings-bg-hover: rgb(255 255 255 / 14%);
     --ntp-settings-fg: #d6d6de;
@@ -88,17 +122,30 @@ body {
 
 body {
   box-sizing: border-box;
-  display: grid;
-  place-items: center;
+  display: flex;
+  flex-direction: column;
   padding: var(--ntp-page-padding);
   overflow: hidden;
   background-color: var(--ntp-bg);
+}
+
+/* Tiles stay pinned to the top and the card stage takes the height that is
+   left, so a full stack can never push the tiles off screen. */
+.ntp-main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--ntp-main-gap);
+  min-block-size: 0;
+  inline-size: 100%;
 }
 
 /* Flex instead of grid: a full last row still centers when fewer than 10
    tiles are rendered, and the width cap keeps it at five per row. */
 .ntp-tiles {
   display: flex;
+  flex: 0 0 auto;
   flex-wrap: wrap;
   justify-content: center;
   gap: var(--ntp-tile-gap);
@@ -382,7 +429,210 @@ body.ntp-firefox-style .ntp-tile-link:focus-visible .ntp-tile-icon {
   accent-color: var(--ntp-focus-ring);
 }
 
+.ntp-settings-select {
+  margin-inline-start: auto;
+  padding-block: 0.25rem;
+  padding-inline: 0.5rem;
+  border: 1px solid var(--ntp-settings-border);
+  border-radius: calc(var(--ntp-dialog-radius) / 4);
+  background-color: transparent;
+  color: inherit;
+  font: inherit;
+}
 
+
+
+/* Recently closed cards. Every card is the same box; the inline
+   --ntp-card-index lifts each one by a title bar so only the bars show. The
+   top margin reserves the space those lifted bars occupy. */
+.ntp-recent {
+  position: relative;
+  flex: 1;
+  min-block-size: 0;
+  inline-size: min(100%, var(--ntp-card-max-width));
+  margin-block-start: calc(
+    (var(--ntp-card-count, 1) - 1) * var(--ntp-card-bar-block-size)
+  );
+}
+
+.ntp-card {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline: 0;
+  block-size: 100%;
+  overflow: hidden;
+  border: 1px solid var(--ntp-card-border);
+  border-radius: var(--ntp-card-radius);
+  background-color: var(--ntp-card-bg);
+  box-shadow: var(--ntp-card-shadow);
+  transform: translateY(
+    calc(var(--ntp-card-index, 0) * var(--ntp-card-bar-block-size) * -1)
+  );
+  transition: transform var(--ntp-card-transition) var(--ntp-card-ease);
+}
+
+/* Cards above the hovered one slide out from under it. They have to drop
+   pointer events on the way, or one of them lands under the cursor and the
+   hover state flickers between the two. */
+.ntp-card:hover ~ .ntp-card,
+.ntp-card:focus-within ~ .ntp-card {
+  pointer-events: none;
+  transform: translateY(var(--ntp-card-exit-distance));
+}
+
+.ntp-card-open {
+  display: flex;
+  flex-direction: column;
+  block-size: 100%;
+  color: inherit;
+  text-decoration: none;
+}
+
+.ntp-card-open:focus-visible {
+  outline: 2px solid var(--ntp-focus-ring);
+  outline-offset: -3px;
+}
+
+.ntp-card-bar {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--ntp-card-bar-gap);
+  block-size: var(--ntp-card-bar-block-size);
+  /* Keep the last characters clear of the copy button. */
+  padding-inline: var(--ntp-card-bar-padding);
+  padding-inline-end: calc(
+    var(--ntp-card-bar-padding) + var(--ntp-card-copy-size) +
+      var(--ntp-card-bar-gap)
+  );
+  border-block-end: 1px solid var(--ntp-card-border);
+  background-color: var(--ntp-card-bar-bg);
+}
+
+.ntp-card-favicon {
+  flex: 0 0 auto;
+  inline-size: var(--ntp-card-favicon-size);
+  block-size: var(--ntp-card-favicon-size);
+}
+
+/* The character limit is computed in JS; this ellipsis only catches the frame
+   between a resize and the next measurement. */
+.ntp-card-label {
+  flex: 1;
+  min-inline-size: 0;
+  overflow: hidden;
+  color: var(--ntp-card-fg);
+  font-size: var(--ntp-card-bar-font-size);
+  line-height: 1.2;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.ntp-card-url {
+  color: var(--ntp-card-muted);
+}
+
+.ntp-card-copy {
+  position: absolute;
+  inset-block-start: calc(
+    (var(--ntp-card-bar-block-size) - var(--ntp-card-copy-size)) / 2
+  );
+  inset-inline-end: var(--ntp-card-bar-padding);
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  inline-size: var(--ntp-card-copy-size);
+  block-size: var(--ntp-card-copy-size);
+  padding: 0;
+  border: 0;
+  border-radius: var(--ntp-card-copy-radius);
+  background-color: transparent;
+  color: var(--ntp-card-muted);
+  cursor: pointer;
+  transition:
+    background-color var(--ntp-transition) linear,
+    color var(--ntp-transition) linear;
+}
+
+.ntp-card-copy:hover {
+  background-color: var(--ntp-tile-bg-hover);
+  color: var(--ntp-card-fg);
+}
+
+.ntp-card-copy:focus-visible {
+  outline: 2px solid var(--ntp-focus-ring);
+  outline-offset: 1px;
+}
+
+/* Copy glyph: IconPark "copy" from the local SVG library, recolored by currentColor. */
+.ntp-card-copy-icon {
+  display: block;
+  inline-size: var(--ntp-card-copy-glyph-size);
+  block-size: var(--ntp-card-copy-glyph-size);
+  fill: none;
+  stroke: currentcolor;
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.ntp-card-snapshot {
+  flex: 1;
+  min-block-size: 0;
+  overflow: hidden;
+  background-color: var(--ntp-card-snapshot-bg);
+}
+
+/* No snapshot yet (tab never got the chance to be captured): center the favicon.
+   align-content too, so a marker taller than a short card overflows evenly. */
+.ntp-card-snapshot.is-empty {
+  display: grid;
+  place-items: center;
+  align-content: center;
+}
+
+.ntp-card-placeholder {
+  inline-size: var(--ntp-card-placeholder-size);
+  block-size: var(--ntp-card-placeholder-size);
+  object-fit: contain;
+  opacity: 0.55;
+}
+
+.ntp-card-placeholder-letter {
+  display: block;
+  font-size: var(--ntp-card-placeholder-size);
+  font-weight: 600;
+  line-height: 1;
+  color: var(--ntp-card-muted);
+  opacity: 0.5;
+}
+
+.ntp-card-snapshot img:not(.ntp-card-placeholder) {
+  display: block;
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+  object-position: top center;
+}
+
+/* Hidden but still laid out: the width of this sample is what the character
+   limit is derived from. */
+.ntp-card-measure {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  visibility: hidden;
+  white-space: pre;
+  font-size: var(--ntp-card-bar-font-size);
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ntp-card,
+  .ntp-card-copy {
+    transition: none;
+  }
+}
 
 #ntp-diagnostics {
   position: fixed;

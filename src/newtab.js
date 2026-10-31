@@ -1,5 +1,11 @@
 import { applyTranslations, t } from './i18n.js';
 import {
+  buildRecentCards,
+  charLimitForWidth,
+  limitCardText,
+  TITLE_SEPARATOR,
+} from './stack.js';
+import {
   hostOf,
   isWebUrl,
   normalizeHost,
@@ -21,6 +27,16 @@ const HIDDEN_SITES_KEY = 'ntp-hidden-sites';
 const DOMAIN_ONLY_KEY = 'ntp-domain-only';
 const EXCLUDE_BOOKMARKS_KEY = 'ntp-exclude-bookmarks';
 const TILE_STYLE_KEY = 'ntp-tile-style';
+const RECENT_COUNT_KEY = 'ntp-recent-count';
+const RECENT_COUNT_OPTIONS = [1, 2, 3];
+const DEFAULT_RECENT_COUNT = 3;
+// The background script answers this; both sides spell it out because a
+// classic service-worker script cannot import shared modules on Firefox.
+const SNAPSHOT_MESSAGE = 'ntp:snapshots';
+// Proportional fonts have no single character width, so averaging over a mixed
+// sample keeps the computed limit from jumping on every resize step.
+const CHAR_SAMPLE = 'mnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+const CHAR_SAMPLE_REPEAT = 2;
 // CSS swaps the two tile styles off this class; Chromium is the default so an
 // unknown browser falls back to it.
 const FIREFOX_STYLE_CLASS = 'ntp-firefox-style';
@@ -31,14 +47,19 @@ const settingsDialog = document.getElementById('ntp-settings');
 const domainOnlyInput = document.getElementById('opt-domain-only');
 const excludeBookmarksInput = document.getElementById('opt-exclude-bookmarks');
 const firefoxStyleInput = document.getElementById('opt-firefox-style');
+const recentCountInput = document.getElementById('opt-recent-count');
+const recentElement = document.getElementById('ntp-recent');
+const copyIconTemplate = document.getElementById('ntp-card-copy-icon');
 const hiddenKeys = new Set(readStoredArray(HIDDEN_SITES_KEY));
 const settings = {
   domainOnly: readStoredFlag(DOMAIN_ONLY_KEY),
   excludeBookmarks: readStoredFlag(EXCLUDE_BOOKMARKS_KEY),
   firefoxStyle: readStoredFlag(TILE_STYLE_KEY, IS_FIREFOX),
+  recentCount: readStoredCount(RECENT_COUNT_KEY, DEFAULT_RECENT_COUNT),
 };
 let topSites = [];
 let excludedHosts = new Set();
+let recentCards = [];
 
 const THEME_BACKGROUND_PROPERTY = '--ntp-bg';
 const THEME_BACKGROUND_KEYS = ['ntp_background', 'frame'];
@@ -235,6 +256,23 @@ function saveStoredFlag(key, value) {
     localStorage.setItem(key, String(value));
   } catch {
     // Same as above: keep the in-memory setting for this page.
+  }
+}
+
+function readStoredCount(key, fallback) {
+  try {
+    const value = Number(localStorage.getItem(key));
+    return RECENT_COUNT_OPTIONS.includes(value) ? value : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function saveStoredCount(key, value) {
+  try {
+    localStorage.setItem(key, String(value));
+  } catch {
+    // The in-memory setting still applies until this page closes.
   }
 }
 
@@ -440,6 +478,227 @@ function setupSettings() {
     applyTileStyle();
     logEvent('settings:tile-style', { firefoxStyle: settings.firefoxStyle });
   });
+
+  if (recentCountInput) {
+    recentCountInput.value = String(settings.recentCount);
+    recentCountInput.addEventListener('change', () => {
+      const value = Number(recentCountInput.value);
+      settings.recentCount = RECENT_COUNT_OPTIONS.includes(value)
+        ? value
+        : DEFAULT_RECENT_COUNT;
+      saveStoredCount(RECENT_COUNT_KEY, settings.recentCount);
+      logEvent('settings:recent-count', { value: settings.recentCount });
+      refreshRecentCards();
+    });
+  }
+}
+
+// The copy glyph lives in a <template> in the HTML: inline SVG markup parses
+// into the SVG namespace there, so no xmlns string is needed in JS.
+function createPlaceholderIcon(source) {
+  const icon = document.createElement('img');
+  icon.className = 'ntp-card-placeholder';
+  icon.alt = '';
+  icon.width = FAVICON_SIZE;
+  icon.height = FAVICON_SIZE;
+  icon.addEventListener('error', () => icon.remove());
+  icon.src = source;
+  return icon;
+}
+
+// Firefox sessions carry no inline favicon, and loading the remote favIconUrl
+// would break the no-remote-resources rule, so the site's initial stands in.
+function createPlaceholderLetter(url) {
+  const letter = document.createElement('span');
+  letter.className = 'ntp-card-placeholder-letter';
+  letter.setAttribute('aria-hidden', 'true');
+  const host = hostOf(url) || url;
+  letter.textContent = host.slice(0, 1).toUpperCase();
+  return letter;
+}
+
+function createCardElement(card, stackIndex) {
+  const item = document.createElement('article');
+  item.className = 'ntp-card';
+  item.style.setProperty('--ntp-card-index', String(stackIndex));
+
+  const link = document.createElement('a');
+  link.className = 'ntp-card-open';
+  link.href = card.url;
+  link.title = `${card.title}${TITLE_SEPARATOR}${card.url}`;
+  link.addEventListener('click', (event) => {
+    event.preventDefault();
+    restoreSession(card);
+  });
+
+  const bar = document.createElement('div');
+  bar.className = 'ntp-card-bar';
+
+  const source = faviconSource({ sourceUrl: card.url });
+  if (source) {
+    const image = document.createElement('img');
+    image.className = 'ntp-card-favicon';
+    image.alt = '';
+    image.width = FAVICON_SIZE;
+    image.height = FAVICON_SIZE;
+    image.addEventListener('error', () => image.remove());
+    image.src = source;
+    bar.append(image);
+  }
+
+  const label = document.createElement('span');
+  label.className = 'ntp-card-label';
+  const title = document.createElement('span');
+  title.className = 'ntp-card-title';
+  title.textContent = card.title;
+  const url = document.createElement('span');
+  url.className = 'ntp-card-url';
+  url.textContent = card.url;
+  label.append(title, document.createTextNode(TITLE_SEPARATOR), url);
+  bar.append(label);
+
+  const snapshot = document.createElement('div');
+  snapshot.className = 'ntp-card-snapshot';
+  if (card.snapshot) {
+    const image = document.createElement('img');
+    image.alt = '';
+    image.src = card.snapshot;
+    snapshot.append(image);
+  } else {
+    snapshot.classList.add('is-empty');
+    snapshot.append(
+      source ? createPlaceholderIcon(source) : createPlaceholderLetter(card.url),
+    );
+  }
+
+  link.append(bar, snapshot);
+
+  const copy = document.createElement('button');
+  copy.type = 'button';
+  copy.className = 'ntp-card-copy';
+  copy.setAttribute('aria-label', t('copyLink'));
+  if (copyIconTemplate) {
+    copy.append(copyIconTemplate.content.cloneNode(true));
+  }
+  copy.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(card.url);
+      logEvent('recent:copy', { url: card.url });
+    } catch (error) {
+      logEvent('recent:copy-error', { message: error?.message });
+    }
+  });
+
+  item.append(link, copy);
+  return item;
+}
+
+async function restoreSession(card) {
+  try {
+    await extensionApi.sessions.restore(card.sessionId);
+    logEvent('recent:restore', { sessionId: card.sessionId, url: card.url });
+  } catch (error) {
+    // The session may already be gone; opening the URL is still useful.
+    logEvent('recent:restore-error', { message: error?.message });
+    location.href = card.url;
+  }
+}
+
+function measureCharWidth() {
+  const sample = document.createElement('span');
+  sample.className = 'ntp-card-measure';
+  sample.textContent = CHAR_SAMPLE.repeat(CHAR_SAMPLE_REPEAT);
+  document.body.append(sample);
+  const width = sample.getBoundingClientRect().width / sample.textContent.length;
+  sample.remove();
+  return width;
+}
+
+function applyCardText() {
+  if (!recentElement) {
+    return;
+  }
+
+  const labels = recentElement.querySelectorAll('.ntp-card-label');
+  if (labels.length === 0) {
+    return;
+  }
+
+  const limit = charLimitForWidth(labels[0].clientWidth, measureCharWidth());
+  // DOM order is oldest first, the card list is newest first.
+  const ordered = [...recentCards].reverse();
+
+  labels.forEach((label, index) => {
+    const card = ordered[index];
+    if (!card) {
+      return;
+    }
+
+    const text = limitCardText(card, limit);
+    label.querySelector('.ntp-card-title').textContent = text.title;
+    label.querySelector('.ntp-card-url').textContent = text.url;
+  });
+}
+
+function renderRecentCards() {
+  if (!recentElement) {
+    return;
+  }
+
+  const total = recentCards.length;
+  recentElement.style.setProperty('--ntp-card-count', String(Math.max(1, total)));
+  // Later siblings paint on top, so the newest card has to come last.
+  recentElement.replaceChildren(
+    ...[...recentCards]
+      .reverse()
+      .map((card, index) => createCardElement(card, total - 1 - index)),
+  );
+  applyCardText();
+}
+
+async function refreshRecentCards() {
+  if (!recentElement) {
+    return;
+  }
+
+  let sessions = [];
+  try {
+    sessions = await extensionApi.sessions.getRecentlyClosed();
+  } catch (error) {
+    logEvent('sessions:error', { message: error?.message });
+  }
+
+  let snapshots = [];
+  try {
+    const response = await extensionApi.runtime.sendMessage({
+      type: SNAPSHOT_MESSAGE,
+    });
+    snapshots = Array.isArray(response?.snapshots) ? response.snapshots : [];
+  } catch (error) {
+    logEvent('snapshots:error', { message: error?.message });
+  }
+
+  recentCards = buildRecentCards(sessions, snapshots, settings.recentCount);
+  renderRecentCards();
+  logEvent('recent:render', {
+    count: recentCards.length,
+    limit: settings.recentCount,
+    snapshots: snapshots.length,
+  });
+}
+
+function setupRecentCards() {
+  if (!recentElement) {
+    return;
+  }
+
+  // resize is an event, not a poll: the character limit only needs revisiting
+  // when the title bar width actually changes.
+  if (typeof ResizeObserver === 'function') {
+    new ResizeObserver(() => applyCardText()).observe(recentElement);
+  }
+
+  refreshRecentCards();
 }
 
 let isClosing = false;
@@ -556,3 +815,4 @@ listenForThemeChanges();
 closeWhenFocusIsLost();
 setupSettings();
 setupTopSites();
+setupRecentCards();
