@@ -1927,6 +1927,38 @@ async function cardsScenario(page, errors) {
     return summary;
   });
 
+  await check('cards', 'a short window keeps a readable minimum width', async () => {
+    await setViewport(page, 1200, 400);
+    await sleep(500);
+    const info = await page.evaluate(`(() => {
+      const card = document.querySelectorAll('.ntp-card')[2];
+      const stage = document.getElementById('ntp-recent');
+      return {
+        width: Math.round(card.getBoundingClientRect().width),
+        stageWidth: Math.round(stage.getBoundingClientRect().width),
+        scrollWidth: document.documentElement.scrollWidth,
+        innerWidth: window.innerWidth,
+      };
+    })()`);
+    await setViewport(page, CARD_VIEWPORT_WIDTH, CARD_VIEWPORT_HEIGHT);
+    await sleep(500);
+
+    assert(
+      info.stageWidth > 400,
+      `stage is only ${info.stageWidth}px wide, the floor should not be capped by it`,
+    );
+    // --ntp-card-min-inline is 20rem, i.e. 320px at the default font size.
+    assert(
+      Math.abs(info.width - 320) < 2,
+      `card is ${info.width}px wide in a short window, expected the 320px floor`,
+    );
+    assert(
+      info.scrollWidth <= info.innerWidth,
+      `the floor overflowed: ${info.scrollWidth} in ${info.innerWidth}`,
+    );
+    return `${info.width}px floor in a ${info.stageWidth}px stage`;
+  });
+
   await check('cards', 'settings limit defaults to 3 and applies 1', async () => {
     const value = await page.evaluate(
       `document.getElementById('opt-recent-count').value`,
