@@ -61,6 +61,7 @@
   --ntp-card-scale-step: 0.05;
   /* The newest card runs past the bottom of the viewport on purpose. */
   --ntp-card-overhang: clamp(2rem, 12vh, 9rem);
+  --ntp-card-gutter: clamp(1rem, 5vw, 6rem);
   --ntp-card-copy-size: 1.75rem;
   --ntp-card-copy-radius: 6px;
   --ntp-card-copy-glyph-size: 0.6875rem;
@@ -461,7 +462,9 @@ body.ntp-firefox-style .ntp-tile-link:focus-visible .ntp-tile-icon {
   position: relative;
   flex: 1;
   min-block-size: 0;
-  inline-size: 100%;
+  /* The cards sit in from the window edges a little further than the tiles. */
+  inline-size: calc(100% - 2 * var(--ntp-card-gutter));
+  margin-inline: auto;
   margin-block-start: calc((var(--ntp-card-count, 1) - 1) * var(--ntp-card-step));
   /* Pull the stage past the bottom edge so the newest card is cut off by the
      viewport instead of ending early. The negative margin keeps the page
