@@ -49,5 +49,9 @@
   },
   "optionRecentCount": {
     "message": "Сколько показывать карточек"
+  },
+  "optionExcludePrivileged": {
+    "message": "Исключить служебные страницы",
+    "description": "Такие страницы, как chrome://settings и about:config, восстанавливаются, но не снимаются, поэтому по умолчанию не попадают в карточки."
   }
 }

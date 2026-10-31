@@ -760,8 +760,9 @@ async function chromeScenario(page, errors) {
       const box = dialog.getBoundingClientRect();
       return { x: box.x, y: box.y, width: box.width, height: box.height };
     })()`);
+    // The click below lands on the backdrop only if the box stays clear of it.
     assert(
-      rect && rect.x > 20 && rect.y > 20,
+      rect && rect.x > 8 && rect.y > 8,
       `dialog box covers the viewport corner (${JSON.stringify(rect)})`,
     );
     await page.clickAt(8, 8);
@@ -2113,6 +2114,22 @@ async function cardsScenario(page, errors) {
       select.value = '3';
       select.dispatchEvent(new Event('change'));
     })()`);
+    // On by default, so every page in this fixture (all privileged) is dropped.
+    const checked = await page.evaluate(
+      `document.getElementById('opt-exclude-privileged').checked`,
+    );
+    assert(checked === true, `the toggle starts unchecked: ${checked}`);
+    await sleep(300);
+    const hidden = await page.evaluate(
+      `document.querySelectorAll('.ntp-card').length`,
+    );
+    assert(hidden === 0, `${hidden} privileged cards slipped past the default`);
+
+    await page.evaluate(`(() => {
+      const box = document.getElementById('opt-exclude-privileged');
+      box.checked = false;
+      box.dispatchEvent(new Event('change'));
+    })()`);
     await page.waitFor(`document.querySelectorAll('.ntp-card').length === 2`, {
       timeout: 3000,
       label: 'two privileged cards',
@@ -2152,6 +2169,11 @@ async function cardsScenario(page, errors) {
     await page.evaluate(`document.querySelectorAll('.ntp-card-open')[1].click()`);
     const restored = await page.evaluate(`globalThis.__restoredSession`);
     assert(restored === 's-priv', `restored ${restored}`);
+
+    const stored = await page.evaluate(
+      `localStorage.getItem('ntp-exclude-privileged')`,
+    );
+    assert(stored === 'false', `stored flag is ${stored}`);
 
     return `2 cards, no favicon, letter "${info.letter}"`;
   });

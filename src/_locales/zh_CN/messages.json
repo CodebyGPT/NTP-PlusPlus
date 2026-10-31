@@ -49,5 +49,9 @@
   },
   "optionRecentCount": {
     "message": "最近关闭卡片最大显示数"
+  },
+  "optionExcludePrivileged": {
+    "message": "排除特权页面",
+    "description": "chrome://settings、about:config 这类页面可以恢复但无法截图，默认不出现在卡片里。"
   }
 }

@@ -26,6 +26,9 @@ const FAVICON_ENDPOINT = '/_favicon/';
 const HIDDEN_SITES_KEY = 'ntp-hidden-sites';
 const DOMAIN_ONLY_KEY = 'ntp-domain-only';
 const EXCLUDE_BOOKMARKS_KEY = 'ntp-exclude-bookmarks';
+// Privileged pages are restorable but cannot be captured; some people would
+// rather not see them in the card stack at all, so this defaults to excluding.
+const EXCLUDE_PRIVILEGED_KEY = 'ntp-exclude-privileged';
 const TILE_STYLE_KEY = 'ntp-tile-style';
 const RECENT_COUNT_KEY = 'ntp-recent-count';
 const RECENT_COUNT_OPTIONS = [1, 2, 3];
@@ -50,6 +53,7 @@ const domainOnlyInput = document.getElementById('opt-domain-only');
 const excludeBookmarksInput = document.getElementById('opt-exclude-bookmarks');
 const firefoxStyleInput = document.getElementById('opt-firefox-style');
 const recentCountInput = document.getElementById('opt-recent-count');
+const excludePrivilegedInput = document.getElementById('opt-exclude-privileged');
 const recentElement = document.getElementById('ntp-recent');
 const copyIconTemplate = document.getElementById('ntp-card-copy-icon');
 const hiddenKeys = new Set(readStoredArray(HIDDEN_SITES_KEY));
@@ -58,6 +62,8 @@ const settings = {
   excludeBookmarks: readStoredFlag(EXCLUDE_BOOKMARKS_KEY),
   firefoxStyle: readStoredFlag(TILE_STYLE_KEY, IS_FIREFOX),
   recentCount: readStoredCount(RECENT_COUNT_KEY, DEFAULT_RECENT_COUNT),
+  // Default on: this is how the cards behaved before privileged pages showed up.
+  excludePrivileged: readStoredFlag(EXCLUDE_PRIVILEGED_KEY, true),
 };
 let topSites = [];
 let excludedHosts = new Set();
@@ -507,6 +513,18 @@ function setupSettings() {
       refreshRecentCards();
     });
   }
+
+  if (excludePrivilegedInput) {
+    excludePrivilegedInput.checked = settings.excludePrivileged;
+    excludePrivilegedInput.addEventListener('change', () => {
+      settings.excludePrivileged = excludePrivilegedInput.checked;
+      saveStoredFlag(EXCLUDE_PRIVILEGED_KEY, settings.excludePrivileged);
+      logEvent('settings:exclude-privileged', {
+        value: settings.excludePrivileged,
+      });
+      refreshRecentCards();
+    });
+  }
 }
 
 // The copy glyph lives in a <template> in the HTML: inline SVG markup parses
@@ -708,7 +726,9 @@ async function refreshRecentCards() {
     logEvent('snapshots:error', { message: error?.message });
   }
 
-  recentCards = buildRecentCards(sessions, snapshots, settings.recentCount);
+  recentCards = buildRecentCards(sessions, snapshots, settings.recentCount, {
+    webOnly: settings.excludePrivileged,
+  });
   renderRecentCards();
   logEvent('recent:render', {
     count: recentCards.length,

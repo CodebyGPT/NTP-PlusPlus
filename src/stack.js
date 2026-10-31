@@ -1,3 +1,5 @@
+import { isWebUrl } from './topsites.js';
+
 export const SNAPSHOT_SLOTS = 3;
 export const TITLE_SEPARATOR = ' - ';
 export const ELLIPSIS = '…';
@@ -101,13 +103,18 @@ function takeSnapshot(snapshots, taken, url) {
 }
 
 // sessions.getRecentlyClosed() lists a `window` instead of a `tab` for whole
-// windows, and those have no single URL to show.
-export function toRecentSessions(sessions) {
+// windows, and those have no single URL to show. `webOnly` additionally drops
+// the privileged pages, for people who would rather not see chrome:// there.
+export function toRecentSessions(sessions, { webOnly = false } = {}) {
   const recent = [];
 
   for (const entry of sessions ?? []) {
     const tab = entry?.tab;
-    if (!tab || typeof tab.sessionId !== 'string' || !isCardUrl(tab.url)) {
+    if (!tab || typeof tab.sessionId !== 'string') {
+      continue;
+    }
+
+    if (webOnly ? !isWebUrl(tab.url) : !isCardUrl(tab.url)) {
       continue;
     }
 
@@ -121,11 +128,11 @@ export function toRecentSessions(sessions) {
   return recent;
 }
 
-export function buildRecentCards(sessions, snapshots, maxCards) {
+export function buildRecentCards(sessions, snapshots, maxCards, options) {
   const cards = [];
   const taken = new Set();
 
-  for (const session of toRecentSessions(sessions)) {
+  for (const session of toRecentSessions(sessions, options)) {
     if (maxCards !== undefined && cards.length >= maxCards) {
       break;
     }

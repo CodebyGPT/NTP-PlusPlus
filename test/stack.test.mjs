@@ -130,6 +130,13 @@ assert.deepEqual(
 );
 assert.notEqual(paired[0].snapshot, paired[1].snapshot);
 
+// The "exclude privileged pages" setting drops them and keeps the rest.
+assert.deepEqual(
+  toRecentSessions(sessions, { webOnly: true }).map((session) => session.sessionId),
+  ['s1', 's2'],
+);
+assert.equal(buildRecentCards(sessions, snapshots, 3, { webOnly: true }).length, 2);
+
 // Missing snapshot stays undefined rather than reusing an earlier one.
 const unmatched = buildRecentCards(repeated, [snapshots[0]], 3);
 assert.equal(unmatched[0].snapshot, 'data:a1');

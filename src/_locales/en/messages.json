@@ -49,5 +49,9 @@
   },
   "optionRecentCount": {
     "message": "Recently closed cards shown"
+  },
+  "optionExcludePrivileged": {
+    "message": "Exclude privileged pages",
+    "description": "Pages like chrome://settings and about:config can be restored but never captured, so they are left out of the cards."
   }
 }
