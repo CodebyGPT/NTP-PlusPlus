@@ -1001,6 +1001,8 @@ async function chromeScenario(page, errors) {
             glyphCentreX: rect.left + rect.width / 2,
             glyphCentreY: rect.top + rect.height / 2,
             borderWidth: Number.parseFloat(style.borderTopWidth),
+            overflow: style.overflow,
+            userSelect: style.userSelect,
           };
         });
       })()`);
@@ -1030,6 +1032,8 @@ async function chromeScenario(page, errors) {
           badge.glyphCentreX > badge.centreX && badge.glyphCentreY > badge.centreY,
           `glyph is not sitting in the lower right: ${badge.glyphCentreX},${badge.glyphCentreY} in ${badge.centreX},${badge.centreY}`,
         );
+        assert(badge.overflow === 'hidden', `glyph overspill is visible: ${badge.overflow}`);
+        assert(badge.userSelect === 'none', `glyph can be selected: ${badge.userSelect}`);
       }
       assert(
         new Set(badges.map((badge) => badge.background)).size > 3,

@@ -24,10 +24,11 @@
   --ntp-tile-icon-radius: 50%;
   --ntp-tile-icon-bg: rgb(0 0 0 / 6%);
   --ntp-tile-icon-hover-scale: 1.3;
-  /* Letter badge: rounded square, not a circle, with the glyph oversized in the
-     lower right corner so a sliver of it leaves the square. */
+  /* Letter badge: rounded square, not a circle, with a nearly full-size glyph
+     leaning into the lower right corner; whatever leaves the square is clipped
+     by the badge's own rounded corners. */
   --ntp-tile-letter-radius: 26%;
-  --ntp-tile-letter-glyph-scale: 0.66;
+  --ntp-tile-letter-glyph-scale: 0.95;
   --ntp-tile-letter-tilt: -10deg;
   --ntp-tile-letter-nudge: -5%;
   /* One favicon size for both styles. The Chromium backing is a little larger
@@ -250,16 +251,20 @@ body {
   visibility: hidden;
 }
 
-/* Auto-generated letter icon: fills the icon slot as a filled rounded square
-   (no outline), with a bold glyph sitting in the lower right, tilted
-   counter-clockwise, allowed to overspill the square a little. Colours come
-   from topsites.js: a Morandi fill plus black or white chosen by contrast. */
+/* Auto-generated letter icon: a filled rounded square (no outline) with a bold
+   glyph leaning in the lower right. The glyph is oversized so the badge clips
+   it, which is what makes it read as a logo instead of a letter with padding.
+   Colours come from topsites.js: a Memphis fill plus black or white text
+   chosen by measured contrast. */
 .ntp-tile-letter {
   position: absolute;
   inset: 0;
+  overflow: hidden;
   border-radius: var(--ntp-tile-letter-radius);
-  overflow: visible;
   line-height: 1;
+  /* The glyph is decoration, not copy: dragging over the grid must not select
+     it. */
+  user-select: none;
 }
 
 .ntp-tile-letter-glyph {

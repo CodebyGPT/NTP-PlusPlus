@@ -85,26 +85,26 @@ export function prepareTiles(sites, { domainOnly = false, excludeHosts, hiddenKe
   return tiles;
 }
 
-// Morandi palette: dusty, low-saturation hues, all mid to light so a filled
-// square of any of them reads as one family. The letter gets black or white
-// from the contrast test below rather than from taste.
+// Memphis palette: the eighties design movement's loud primaries — hot pink,
+// sunshine yellow, teal, cobalt — with a few near-blacks so the contrast test
+// has white-letter backgrounds to pick from too.
 export const LETTER_COLORS = [
-  '#a3b1c2',
-  '#8c9eae',
-  '#9caf9c',
-  '#b5a997',
-  '#c2b2a8',
-  '#a99a94',
-  '#b8a2a2',
-  '#8e8c9a',
-  '#c4b5a0',
-  '#7f8b99',
-  '#6e7b8b',
-  '#88a08f',
-  '#5f6b73',
-  '#6b6259',
-  '#5c6b5f',
-  '#6f5f66',
+  '#ff5d8f',
+  '#ffd23f',
+  '#4ecdc4',
+  '#ff6b35',
+  '#f7b32b',
+  '#a8e6cf',
+  '#b8b5ff',
+  '#ffadad',
+  '#3d5a80',
+  '#2b2d42',
+  '#6a4c93',
+  '#264653',
+  '#1b998b',
+  '#e63946',
+  '#8e5572',
+  '#457b9d',
 ];
 
 const LETTER_TEXT_DARK = '#14161a';
