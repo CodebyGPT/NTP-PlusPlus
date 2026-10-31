@@ -47,6 +47,10 @@ const CHAR_SAMPLE = 'mnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
 const CHAR_SAMPLE_REPEAT = 2;
 // Cards keep the display's own aspect ratio so a wide screen gets wide cards.
 const CARD_ASPECT_PROPERTY = '--ntp-card-aspect';
+// Read back from CSS so the icon column and the gap between it and the text
+// stay one source of truth; the text limit is derived from them.
+const TAB_ICON_SIZE_PROPERTY = '--ntp-card-tab-icon-size';
+const TAB_ICON_GAP_PROPERTY = '--ntp-card-tab-gap';
 // CSS swaps the two tile styles off this class; Chromium is the default so an
 // unknown browser falls back to it.
 const FIREFOX_STYLE_CLASS = 'ntp-firefox-style';
@@ -698,8 +702,10 @@ function tabLine(tab) {
   return `${tab.title}${TITLE_SEPARATOR}${tab.url}`;
 }
 
+// Copied lines are markdown links: the shape every editor, chat box and issue
+// tracker turns back into a working link.
 function tabsText(card) {
-  return card.tabs.map(tabLine).join('\n');
+  return card.tabs.map((tab) => `[${tab.title}](${tab.url})`).join('\n');
 }
 
 function windowLabel(card) {
@@ -742,10 +748,13 @@ function fillWindowCard(cardElement, card, charWidth) {
     parseFloat(style.paddingBlockStart) + parseFloat(style.paddingBlockEnd);
   const paddingInline =
     parseFloat(style.paddingInlineStart) + parseFloat(style.paddingInlineEnd);
-  const limit = charLimitForWidth(
-    list.clientWidth - paddingInline,
-    charWidth,
-  );
+  const contentWidth = list.clientWidth - paddingInline;
+  // A row that carries an icon has that much less room for text.
+  const iconWidth =
+    (parseFloat(style.getPropertyValue(TAB_ICON_SIZE_PROPERTY)) || 0) +
+    (parseFloat(style.getPropertyValue(TAB_ICON_GAP_PROPERTY)) || 0);
+  const limitFor = (withIcon) =>
+    charLimitForWidth(withIcon ? contentWidth - iconWidth : contentWidth, charWidth);
   const rowHeight = measureRowHeight();
   const rows = Math.max(
     1,
@@ -755,19 +764,43 @@ function fillWindowCard(cardElement, card, charWidth) {
   // the list stays centred.
   const truncated = card.tabs.length > rows;
   const shown = truncated ? card.tabs.slice(0, rows - 1) : card.tabs;
-  const lines = shown.map((tab) => limitLabel(tabLine(tab), limit));
+
+  const rowElements = shown.map((tab) => {
+    const icon = createTabIcon(tab.url);
+    return createTabRow(limitLabel(tabLine(tab), limitFor(Boolean(icon))), icon);
+  });
   if (truncated) {
-    lines.push(ELLIPSIS);
+    rowElements.push(createTabRow(ELLIPSIS));
   }
 
-  list.replaceChildren(
-    ...lines.map((line) => {
-      const row = document.createElement('div');
-      row.className = 'ntp-card-tab-row';
-      row.textContent = line;
-      return row;
-    }),
-  );
+  list.replaceChildren(...rowElements);
+}
+
+function createTabIcon(url) {
+  const source = faviconSource({ sourceUrl: url });
+  if (!source) {
+    return undefined;
+  }
+
+  const icon = document.createElement('img');
+  icon.className = 'ntp-card-tab-icon';
+  icon.alt = '';
+  icon.addEventListener('error', () => icon.remove());
+  icon.src = source;
+  return icon;
+}
+
+function createTabRow(text, icon) {
+  const row = document.createElement('div');
+  row.className = 'ntp-card-tab-row';
+  const label = document.createElement('span');
+  label.className = 'ntp-card-tab-label';
+  label.textContent = text;
+  if (icon) {
+    row.append(icon);
+  }
+  row.append(label);
+  return row;
 }
 
 function applyCardText() {

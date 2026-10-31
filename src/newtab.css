@@ -67,6 +67,8 @@
   --ntp-card-tabs-padding: clamp(0.5rem, 1.5vw, 1.25rem);
   --ntp-card-tab-font-size: 0.8125rem;
   --ntp-card-tab-line-height: 1.5;
+  --ntp-card-tab-icon-size: 0.875rem;
+  --ntp-card-tab-gap: 0.375rem;
   --ntp-card-copy-size: 1.75rem;
   --ntp-card-copy-radius: 6px;
   --ntp-card-copy-active-bg: rgb(0 0 0 / 18%);
@@ -708,12 +710,30 @@ body.ntp-firefox-style .ntp-tile-link:focus-visible .ntp-tile-icon {
   background-color: var(--ntp-card-snapshot-bg);
 }
 
+/* Each row is a centred flex line: the icon and the text sit together in the
+   middle, and only the text is allowed to fold when it runs out of width. */
 .ntp-card-tab-row {
+  display: flex;
   flex: 0 0 auto;
-  overflow: hidden;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ntp-card-tab-gap);
+  inline-size: 100%;
   font-size: var(--ntp-card-tab-font-size);
   line-height: var(--ntp-card-tab-line-height);
   color: var(--ntp-card-muted);
+}
+
+.ntp-card-tab-icon {
+  flex: 0 0 auto;
+  inline-size: var(--ntp-card-tab-icon-size);
+  block-size: var(--ntp-card-tab-icon-size);
+  object-fit: contain;
+}
+
+.ntp-card-tab-label {
+  min-inline-size: 0;
+  overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
 }

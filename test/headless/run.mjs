@@ -2241,14 +2241,20 @@ async function cardsScenario(page, errors) {
       const box = list.getBoundingClientRect();
       const first = rows[0].getBoundingClientRect();
       const last = rows[rows.length - 1].getBoundingClientRect();
+      const label = rows[rows.length - 1].querySelector('.ntp-card-tab-label');
+      const labelBox = label.getBoundingClientRect();
+      const padding = parseFloat(style.paddingInlineStart) + parseFloat(style.paddingInlineEnd);
       return {
         icons: bar.querySelectorAll('.ntp-card-favicon, .ntp-card-bar-letter').length,
         title: card.querySelector('.ntp-card-title').textContent,
-        rows: rows.map((row) => row.textContent),
+        rows: rows.map((row) => row.textContent.trim()),
         snapshots: card.querySelectorAll('.ntp-card-snapshot img').length,
+        labels: rows.map((row) => row.querySelector('.ntp-card-tab-label').textContent),
         topGap: first.top - box.top - parseFloat(style.paddingBlockStart),
         bottomGap: box.bottom - last.bottom - parseFloat(style.paddingBlockEnd),
-        rowGrow: last.top - first.top,
+        leftGap: labelBox.left - box.left - parseFloat(style.paddingInlineStart),
+        rightGap: box.right - parseFloat(style.paddingInlineEnd) - labelBox.right,
+        contentWidth: box.width - padding,
       };
     })()`);
 
@@ -2277,6 +2283,10 @@ async function cardsScenario(page, errors) {
       Math.abs(info.topGap - info.bottomGap) < 2,
       `list is not centred: ${info.topGap} vs ${info.bottomGap}`,
     );
+    assert(
+      Math.abs(info.leftGap - info.rightGap) < 2,
+      `rows are not centred across: ${info.leftGap} vs ${info.rightGap}`,
+    );
 
     await recordScreenshot(page, 'cards', 'chrome-cards-window.png');
 
@@ -2285,8 +2295,12 @@ async function cardsScenario(page, errors) {
     const lines = String(copied).split('\n');
     assert(lines.length === WINDOW_TAB_COUNT, `copied ${lines.length} lines`);
     assert(
-      lines[0] === `${WINDOW_TABS[0].title} - ${WINDOW_TABS[0].url}`,
+      lines[0] === `[${WINDOW_TABS[0].title}](${WINDOW_TABS[0].url})`,
       `first copied line is "${lines[0]}"`,
+    );
+    assert(
+      lines.every((line) => /^\[[^\]]+\]\([^)]+\)$/.test(line)),
+      `a copied line is not a markdown link: "${lines.find((line) => !/^\[[^\]]+\]\([^)]+\)$/.test(line))}"`,
     );
 
     await page.evaluate(`document.querySelector('.ntp-card-open').click()`);
