@@ -37,5 +37,8 @@
   },
   "optionExcludeBookmarks": {
     "message": "排除已收藏的网站"
+  },
+  "optionFirefoxStyle": {
+    "message": "使用 Firefox 风格瓦片"
   }
 }

@@ -20,16 +20,22 @@ const FAVICON_ENDPOINT = '/_favicon/';
 const HIDDEN_SITES_KEY = 'ntp-hidden-sites';
 const DOMAIN_ONLY_KEY = 'ntp-domain-only';
 const EXCLUDE_BOOKMARKS_KEY = 'ntp-exclude-bookmarks';
+const TILE_STYLE_KEY = 'ntp-tile-style';
+// CSS swaps the two tile styles off this class; Chromium is the default so an
+// unknown browser falls back to it.
+const FIREFOX_STYLE_CLASS = 'ntp-firefox-style';
 
 const tilesElement = document.getElementById('ntp-tiles');
 const settingsButton = document.getElementById('ntp-settings-button');
 const settingsDialog = document.getElementById('ntp-settings');
 const domainOnlyInput = document.getElementById('opt-domain-only');
 const excludeBookmarksInput = document.getElementById('opt-exclude-bookmarks');
+const firefoxStyleInput = document.getElementById('opt-firefox-style');
 const hiddenKeys = new Set(readStoredArray(HIDDEN_SITES_KEY));
 const settings = {
   domainOnly: readStoredFlag(DOMAIN_ONLY_KEY),
   excludeBookmarks: readStoredFlag(EXCLUDE_BOOKMARKS_KEY),
+  firefoxStyle: readStoredFlag(TILE_STYLE_KEY, IS_FIREFOX),
 };
 let topSites = [];
 let excludedHosts = new Set();
@@ -119,6 +125,7 @@ function logPageState(name) {
 }
 
 applyTranslations();
+applyTileStyle();
 if (showDiagnostics) {
   createDiagnosticsPanel();
 }
@@ -214,11 +221,12 @@ function saveStoredArray(key, values) {
   }
 }
 
-function readStoredFlag(key) {
+function readStoredFlag(key, fallback = false) {
   try {
-    return localStorage.getItem(key) === 'true';
+    const stored = localStorage.getItem(key);
+    return stored === null ? fallback : stored === 'true';
   } catch {
-    return false;
+    return fallback;
   }
 }
 
@@ -368,6 +376,10 @@ async function refreshExcludedHosts() {
   }
 }
 
+function applyTileStyle() {
+  document.body.classList.toggle(FIREFOX_STYLE_CLASS, settings.firefoxStyle);
+}
+
 function setupSettings() {
   if (!settingsButton || !settingsDialog) {
     return;
@@ -375,6 +387,7 @@ function setupSettings() {
 
   domainOnlyInput.checked = settings.domainOnly;
   excludeBookmarksInput.checked = settings.excludeBookmarks;
+  firefoxStyleInput.checked = settings.firefoxStyle;
 
   // Chromium returns at most 10 top sites, so excluding bookmarks would leave
   // holes in a full grid. Disable the option there instead of reloading.
@@ -419,6 +432,13 @@ function setupSettings() {
     logEvent('settings:exclude-bookmarks', {
       value: settings.excludeBookmarks,
     });
+  });
+
+  firefoxStyleInput.addEventListener('change', () => {
+    settings.firefoxStyle = firefoxStyleInput.checked;
+    saveStoredFlag(TILE_STYLE_KEY, settings.firefoxStyle);
+    applyTileStyle();
+    logEvent('settings:tile-style', { firefoxStyle: settings.firefoxStyle });
   });
 }
 

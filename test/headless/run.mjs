@@ -335,6 +335,10 @@ function createPage(cdp, sessionId, extensionUrl) {
       await cdp.send('Input.dispatchMouseEvent', { ...base, type: 'mouseReleased' }, sessionId);
     },
 
+    async moveMouse(x, y) {
+      await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y }, sessionId);
+    },
+
     async navigate(url) {
       const loaded = waitForLoadEvent(cdp);
       await cdp.send('Page.navigate', { url }, sessionId);
@@ -743,6 +747,67 @@ async function chromeScenario(page, errors) {
 
   await check(
     'chrome',
+    'tile style defaults to Chromium chrome',
+    async () => {
+      const info = await page.evaluate(`(() => {
+        const icon = document.querySelector('#ntp-tiles .ntp-tile-icon');
+        const link = document.querySelector('#ntp-tiles .ntp-tile-link');
+        if (!icon || !link) return null;
+        return {
+          bodyClass: document.body.className,
+          iconRadius: getComputedStyle(icon).borderTopLeftRadius,
+          linkBackground: getComputedStyle(link).backgroundColor,
+        };
+      })()`);
+      assert(info, 'tile markup missing');
+      assert(
+        !info.bodyClass.split(/\\s+/).includes('ntp-firefox-style'),
+        `unexpected Firefox style class (${info.bodyClass})`,
+      );
+      assert(
+        info.iconRadius === '50%',
+        `icon backing is ${info.iconRadius}, expected 50%`,
+      );
+      assert(
+        info.linkBackground === 'rgba(0, 0, 0, 0)',
+        `tile has a background at rest (${info.linkBackground})`,
+      );
+      return `round icon, transparent tile (${info.iconRadius})`;
+    },
+  );
+
+  await check(
+    'chrome',
+    'tile style switch applies the Firefox style immediately',
+    async () => {
+      await page.evaluate(`(() => {
+        const input = document.querySelector('#opt-firefox-style');
+        if (!input) throw new Error('missing #opt-firefox-style');
+        input.click();
+      })()`);
+      const switched = await page.waitFor(`(() => {
+        const icon = document.querySelector('#ntp-tiles .ntp-tile-icon');
+        if (!icon) return 0;
+        const radius = getComputedStyle(icon).borderTopLeftRadius;
+        return document.body.classList.contains('ntp-firefox-style') &&
+          radius === '8px' ? { radius } : 0;
+      })()`, { label: 'Firefox-style tiles applied' });
+      await recordScreenshot(page, 'chrome', 'chrome-firefox-style.png');
+      const stored = await page.evaluate(
+        `localStorage.getItem('ntp-tile-style')`,
+      );
+      assert(stored === 'true', `style flag was stored as ${stored}`);
+      await page.evaluate(`document.querySelector('#opt-firefox-style').click()`);
+      await page.waitFor(
+        `!document.body.classList.contains('ntp-firefox-style')`,
+        { label: 'Chromium-style tiles restored' },
+      );
+      return `icon radius ${switched.radius}, persisted, restored`;
+    },
+  );
+
+  await check(
+    'chrome',
     'domain-only rewrites every tile to its origin',
     async () => {
       await page.evaluate(`(() => {
@@ -824,15 +889,75 @@ async function firefoxScenario(page, errors) {
     },
   );
 
-  await check('firefox', 'delete buttons are visible', async () => {
-    const visible = await page.waitFor(`(() => {
-      const visible = ${VISIBLE_FN};
-      return [...document.querySelectorAll('#ntp-tiles .ntp-tile-remove')]
-        .filter(visible).length;
-    })()`, { label: '10 visible remove buttons' });
-    assert(visible === 10, `${visible} visible remove buttons, expected 10`);
-    return '10 visible';
-  });
+  await check(
+    'firefox',
+    'Firefox style is the default there: 8px icon backing, no tile background',
+    async () => {
+      const info = await page.evaluate(`(() => {
+        const icon = document.querySelector('#ntp-tiles .ntp-tile-icon');
+        const link = document.querySelector('#ntp-tiles .ntp-tile-link');
+        if (!icon || !link) return null;
+        return {
+          bodyClass: document.body.className,
+          iconRadius: getComputedStyle(icon).borderTopLeftRadius,
+          linkBackground: getComputedStyle(link).backgroundColor,
+          styleChecked: document.querySelector('#opt-firefox-style')?.checked,
+        };
+      })()`);
+      assert(info, 'tile markup missing');
+      assert(
+        info.bodyClass.split(/\\s+/).includes('ntp-firefox-style'),
+        `body missing ntp-firefox-style (${info.bodyClass})`,
+      );
+      assert(
+        info.iconRadius === '8px',
+        `icon backing is ${info.iconRadius}, expected 8px`,
+      );
+      assert(
+        info.linkBackground === 'rgba(0, 0, 0, 0)',
+        `Firefox tiles must not draw a tile background (${info.linkBackground})`,
+      );
+      assert(info.styleChecked === true, 'style checkbox not checked on Firefox');
+      return `8px icon radius, transparent tile`;
+    },
+  );
+
+  await check(
+    'firefox',
+    'remove buttons stay hidden until the tile is hovered',
+    async () => {
+      const atRest = await page.evaluate(`(() => {
+        const tile = document.querySelector('#ntp-tiles .ntp-tile');
+        const button = tile?.querySelector('.ntp-tile-remove');
+        return button ? getComputedStyle(button).opacity : null;
+      })()`);
+      assert(atRest === '0', `remove button opacity at rest was ${atRest}`);
+
+      const point = await page.evaluate(`(() => {
+        const tile = document.querySelector('#ntp-tiles .ntp-tile');
+        const box = tile.getBoundingClientRect();
+        return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+      })()`);
+      await page.moveMouse(point.x, point.y);
+      const hovered = await page.waitFor(`(() => {
+        const tile = document.querySelector('#ntp-tiles .ntp-tile');
+        const button = tile?.querySelector('.ntp-tile-remove');
+        const icon = tile?.querySelector('.ntp-tile-icon');
+        if (!button || !icon) return 0;
+        const transform = getComputedStyle(icon).transform;
+        return getComputedStyle(button).opacity === '1' &&
+          transform.startsWith('matrix(') ? { transform } : 0;
+      })()`, { label: 'hover reveals remove button and scales icon' });
+
+      await page.moveMouse(4, 4);
+      await page.waitFor(`(() => {
+        const button = document.querySelector('#ntp-tiles .ntp-tile-remove');
+        return button && getComputedStyle(button).opacity === '0';
+      })()`, { label: 'remove button hidden again' });
+
+      return `opacity 0 -> 1 (${hovered.transform}) -> 0`;
+    },
+  );
 
   await recordScreenshot(page, 'firefox', 'firefox-newtab.png');
 

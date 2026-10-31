@@ -14,21 +14,27 @@
   --ntp-diag-radius: 0.5rem;
   --ntp-diag-z-index: 10;
 
-  /* New tab tiles. */
+  /* New tab tiles. Both browser styles share the same DOM; only the icon
+     backing, the tile hover and the radii differ. */
   --ntp-page-padding: clamp(1rem, 4vw, 3rem);
   --ntp-tile-width: clamp(4.5rem, 17vw, 6.5rem);
   --ntp-tile-gap: clamp(0.5rem, 1.5vw, 1.25rem);
-  --ntp-tile-radius: 0.75rem;
-  --ntp-tile-icon-size: 2rem;
-  --ntp-tile-bg: rgb(0 0 0 / 4%);
+  --ntp-tile-radius: 2px;
+  --ntp-tile-icon-size: 2.5rem;
+  --ntp-tile-icon-radius: 50%;
+  --ntp-tile-icon-bg: rgb(0 0 0 / 6%);
+  --ntp-tile-icon-hover-scale: 1.1;
   --ntp-tile-bg-hover: rgb(0 0 0 / 8%);
   --ntp-tile-fg: #26262c;
   --ntp-tile-muted: #62626e;
-  --ntp-tile-letter-bg: rgb(0 0 0 / 8%);
   --ntp-tile-remove-bg: #ffffff;
   --ntp-tile-remove-fg: #4a4a55;
   --ntp-tile-remove-border: rgb(0 0 0 / 15%);
   --ntp-focus-ring: #2f6fed;
+  --ntp-transition: 120ms;
+
+  /* Firefox-style tiles: square-ish icon backing, no tile background. */
+  --ntp-firefox-tile-icon-radius: 8px;
 
   /* Settings button and dialog. */
   --ntp-settings-size: 2.75rem;
@@ -49,11 +55,10 @@
 @media (prefers-color-scheme: dark) {
   :root {
     --ntp-bg: var(--ntp-bg-dark);
-    --ntp-tile-bg: rgb(255 255 255 / 6%);
+    --ntp-tile-icon-bg: rgb(255 255 255 / 10%);
     --ntp-tile-bg-hover: rgb(255 255 255 / 12%);
     --ntp-tile-fg: #f2f2f6;
     --ntp-tile-muted: #b6b6c2;
-    --ntp-tile-letter-bg: rgb(255 255 255 / 10%);
     --ntp-tile-remove-bg: #2c2b33;
     --ntp-tile-remove-fg: #d6d6de;
     --ntp-tile-remove-border: rgb(255 255 255 / 20%);
@@ -100,6 +105,10 @@ body {
   position: relative;
 }
 
+/* Chromium style: round icon backing, hover turns the whole tile into a
+   small rounded tile background. Firefox style (body.ntp-firefox-style)
+   overrides the two below: no tile background, square-ish icon backing that
+   scales up on hover. */
 .ntp-tile-link {
   display: flex;
   flex-direction: column;
@@ -107,9 +116,10 @@ body {
   gap: calc(var(--ntp-tile-gap) / 2);
   padding: calc(var(--ntp-tile-gap) / 2);
   border-radius: var(--ntp-tile-radius);
-  background-color: var(--ntp-tile-bg);
+  background-color: transparent;
   color: var(--ntp-tile-fg);
   text-decoration: none;
+  transition: background-color var(--ntp-transition) ease;
 }
 
 .ntp-tile-link:hover {
@@ -127,13 +137,16 @@ body {
   place-items: center;
   inline-size: var(--ntp-tile-icon-size);
   block-size: var(--ntp-tile-icon-size);
+  border-radius: var(--ntp-tile-icon-radius);
+  background-color: var(--ntp-tile-icon-bg);
+  transition: transform var(--ntp-transition) ease;
 }
 
 .ntp-tile-favicon {
   position: absolute;
-  inset: 0;
-  inline-size: 100%;
-  block-size: 100%;
+  inset: 15%;
+  inline-size: 70%;
+  block-size: 70%;
   object-fit: contain;
 }
 
@@ -144,10 +157,6 @@ body {
 .ntp-tile-letter {
   display: grid;
   place-items: center;
-  inline-size: 100%;
-  block-size: 100%;
-  border-radius: 50%;
-  background-color: var(--ntp-tile-letter-bg);
   font-size: 0.9em;
   font-weight: 600;
   line-height: 1;
@@ -162,10 +171,30 @@ body {
   color: var(--ntp-tile-muted);
 }
 
+/* Firefox style: no tile background, icon backing grows from its center on
+   hover and the remove button fades in over the icon's top-right corner. */
+body.ntp-firefox-style .ntp-tile-link {
+  border-radius: 0;
+}
+
+body.ntp-firefox-style .ntp-tile-link:hover {
+  background-color: transparent;
+}
+
+body.ntp-firefox-style .ntp-tile-icon {
+  border-radius: var(--ntp-firefox-tile-icon-radius);
+}
+
+body.ntp-firefox-style .ntp-tile-link:hover .ntp-tile-icon,
+body.ntp-firefox-style .ntp-tile-link:focus-visible .ntp-tile-icon {
+  transform: scale(var(--ntp-tile-icon-hover-scale));
+}
+
 .ntp-tile-remove {
   position: absolute;
-  inset-block-start: calc(var(--ntp-tile-gap) / -4);
-  inset-inline-end: calc(var(--ntp-tile-gap) / -4);
+  z-index: 1;
+  inset-block-start: calc(var(--ntp-tile-gap) / 2);
+  inset-inline-end: calc(50% - var(--ntp-tile-icon-size) / 2);
   display: grid;
   place-items: center;
   inline-size: 1.25rem;
@@ -178,10 +207,28 @@ body {
   font-size: 0.9rem;
   line-height: 1;
   cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(50%, -50%);
+  transition: opacity var(--ntp-transition) ease;
+}
+
+.ntp-tile:hover .ntp-tile-remove,
+.ntp-tile:focus-within .ntp-tile-remove {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .ntp-tile-remove:hover {
   color: var(--ntp-tile-fg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ntp-tile-link,
+  .ntp-tile-icon,
+  .ntp-tile-remove {
+    transition: none;
+  }
 }
 
 .ntp-settings-button {

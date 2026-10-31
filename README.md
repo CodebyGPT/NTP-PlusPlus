@@ -5,11 +5,13 @@
 - 无网络请求、无遥测、无远程资源
 - 支持 Chrome 121+ / Firefox 109+，统一使用 Promise API；低于 Chrome 121 的 Chromium 内核浏览器会被清单拒绝安装
 - 常用网站 5×2 共十个瓦片：左键在当前标签页打开，右键弹出浏览器原生菜单；取不到有效图标时显示首字母
+- 两套瓦片风格，按浏览器自动选择，也可在设置里手动切换：Chromium 是圆形图标底，悬停时整块瓦片出现 2px 圆角的底色；Firefox 是 8px 圆角图标底，悬停时图标底略微放大并在图标右上角显示删除按钮。识别不到浏览器时回退 Chromium 风格
 - Chromium：`topSites` API 最多返回十条，因此不显示删除按钮；站点图标通过 `/_favicon/` 读取
 - Firefox：使用 `topSites.get` 的 `includeFavicon`；每个瓦片可删除，删除后由溢出站点补位
 - 右下角设置弹窗：点背景或关闭按钮关闭，改完即时生效，没有保存按钮
   - 只保留域名（默认关闭）：瓦片链接收窄到站点根地址
   - 排除已收藏的网站（默认关闭，Chromium 上置灰）：按主机名精确匹配跳过收藏过的站点
+  - Firefox 风格瓦片（默认跟随浏览器）：手动在两种瓦片风格之间切换
 - Chrome：深浅色跟随 `prefers-color-scheme`
 - Firefox：额外读取当前主题色（`ntp_background` → `frame`）
 - 纯事件驱动，无轮询、无定时器：新标签页失去焦点或变为隐藏时，只要同一窗口还有其他标签页就用 `window.close()` 关闭自己；只剩它一个时保留，避免把窗口一起关掉；不调用 `tabs.remove`，不会遇到标签栏忙锁
@@ -31,7 +33,7 @@
 
 ## 本地数据
 
-设置项和已删除的站点保存在扩展页面的 `localStorage`（`ntp-domain-only`、`ntp-exclude-bookmarks`、`ntp-hidden-sites`），不随浏览记录同步、不发送到任何服务器。
+设置项和已删除的站点保存在扩展页面的 `localStorage`（`ntp-domain-only`、`ntp-exclude-bookmarks`、`ntp-tile-style`、`ntp-hidden-sites`），不随浏览记录同步、不发送到任何服务器。
 
 ## 构建
 

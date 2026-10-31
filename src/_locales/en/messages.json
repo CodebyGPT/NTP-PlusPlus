@@ -37,5 +37,8 @@
   },
   "optionExcludeBookmarks": {
     "message": "Exclude bookmarked sites"
+  },
+  "optionFirefoxStyle": {
+    "message": "Use Firefox-style tiles"
   }
 }
