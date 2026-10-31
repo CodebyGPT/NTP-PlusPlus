@@ -808,6 +808,29 @@ async function chromeScenario(page, errors) {
 
   await check(
     'chrome',
+    'square favicon corners stay inside the round backing',
+    async () => {
+      const info = await page.evaluate(`(() => {
+        const icon = document.querySelector('#ntp-tiles .ntp-tile-icon');
+        const image = icon?.querySelector('.ntp-tile-favicon');
+        if (!icon || !image) return null;
+        const iconBox = icon.getBoundingClientRect();
+        const imageBox = image.getBoundingClientRect();
+        const radius = iconBox.width / 2;
+        const corner = Math.hypot(imageBox.width / 2, imageBox.height / 2);
+        return { radius, corner, gap: radius - corner };
+      })()`);
+      assert(info, 'icon or favicon missing');
+      assert(
+        info.gap >= 1,
+        `favicon corner is ${info.gap.toFixed(1)}px from the circle edge`,
+      );
+      return `${info.gap.toFixed(1)}px corner gap`;
+    },
+  );
+
+  await check(
+    'chrome',
     'hovering a tile draws the 3px tile background',
     async () => {
       const point = await page.evaluate(`(() => {

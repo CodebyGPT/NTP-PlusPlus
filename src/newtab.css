@@ -24,6 +24,10 @@
   --ntp-tile-icon-radius: 50%;
   --ntp-tile-icon-bg: rgb(0 0 0 / 6%);
   --ntp-tile-icon-hover-scale: 1.3;
+  /* Square favicons have to stay inside the round backing: the corner of a
+     square inscribed in a circle sits at 70.7% of its width, so a 15/70 split
+     leaves the corners exactly on the circle edge. 18% keeps a visible gap. */
+  --ntp-tile-favicon-inset: 18%;
   --ntp-tile-bg-hover: rgb(0 0 0 / 8%);
   --ntp-tile-title-line-height: 1.3;
   --ntp-tile-title-clamp: 1;
@@ -146,9 +150,9 @@ body {
 
 .ntp-tile-favicon {
   position: absolute;
-  inset: 15%;
-  inline-size: 70%;
-  block-size: 70%;
+  inset: var(--ntp-tile-favicon-inset);
+  inline-size: calc(100% - 2 * var(--ntp-tile-favicon-inset));
+  block-size: calc(100% - 2 * var(--ntp-tile-favicon-inset));
   object-fit: contain;
 }
 
