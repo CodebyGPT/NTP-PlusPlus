@@ -71,5 +71,9 @@
   },
   "optionLetterFavicons": {
     "message": "调试：只用单字母图标"
+  },
+  "optionSnapshotCap": {
+    "message": "快照尺寸",
+    "description": "最近关闭卡片的快照分辨率"
   }
 }

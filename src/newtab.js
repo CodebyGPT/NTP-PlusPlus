@@ -34,6 +34,9 @@ const EXCLUDE_PRIVILEGED_KEY = 'ntp-exclude-privileged';
 // noisy next to single pages, so this is off by default.
 const EXCLUDE_WINDOWS_KEY = 'ntp-exclude-windows';
 const TILE_STYLE_KEY = 'ntp-tile-style';
+const SNAPSHOT_CAP_KEY = 'ntp-snapshot-cap';
+const SNAPSHOT_CAP_OPTIONS = [720, 1080, 1440, 2160];
+const DEFAULT_SNAPSHOT_CAP = 1080;
 const RECENT_COUNT_KEY = 'ntp-recent-count';
 const RECENT_COUNT_OPTIONS = [1, 2, 3];
 const DEFAULT_RECENT_COUNT = 3;
@@ -61,6 +64,7 @@ const settingsDialog = document.getElementById('ntp-settings');
 const domainOnlyInput = document.getElementById('opt-domain-only');
 const excludeBookmarksInput = document.getElementById('opt-exclude-bookmarks');
 const firefoxStyleInput = document.getElementById('opt-firefox-style');
+const snapshotCapInput = document.getElementById('opt-snapshot-cap');
 const recentCountInput = document.getElementById('opt-recent-count');
 const excludePrivilegedInput = document.getElementById('opt-exclude-privileged');
 const excludeWindowsInput = document.getElementById('opt-exclude-windows');
@@ -72,6 +76,7 @@ const settings = {
   domainOnly: readStoredFlag(DOMAIN_ONLY_KEY),
   excludeBookmarks: readStoredFlag(EXCLUDE_BOOKMARKS_KEY),
   firefoxStyle: readStoredFlag(TILE_STYLE_KEY, IS_FIREFOX),
+  snapshotCap: readStoredCount(SNAPSHOT_CAP_KEY, DEFAULT_SNAPSHOT_CAP),
   recentCount: readStoredCount(RECENT_COUNT_KEY, DEFAULT_RECENT_COUNT),
   // Default on: this is how the cards behaved before privileged pages showed up.
   excludePrivileged: readStoredFlag(EXCLUDE_PRIVILEGED_KEY, true),
@@ -469,6 +474,27 @@ function setupSettings() {
     applyTileStyle();
     logEvent('settings:tile-style', { firefoxStyle: settings.firefoxStyle });
   });
+
+  if (snapshotCapInput) {
+    snapshotCapInput.value = String(settings.snapshotCap);
+    // The background worker does the resizing and cannot read localStorage, so
+    // the same value is mirrored into storage.local. Written on load as well,
+    // because local storage may have been cleared independently.
+    extensionApi?.storage?.local
+      ?.set({ [SNAPSHOT_CAP_KEY]: settings.snapshotCap })
+      .catch?.(() => {});
+    snapshotCapInput.addEventListener('change', () => {
+      const value = Number(snapshotCapInput.value);
+      settings.snapshotCap = SNAPSHOT_CAP_OPTIONS.includes(value)
+        ? value
+        : DEFAULT_SNAPSHOT_CAP;
+      saveStoredCount(SNAPSHOT_CAP_KEY, settings.snapshotCap);
+      extensionApi?.storage?.local
+        ?.set({ [SNAPSHOT_CAP_KEY]: settings.snapshotCap })
+        .catch?.(() => {});
+      logEvent('settings:snapshot-cap', { value: settings.snapshotCap });
+    });
+  }
 
   if (recentCountInput) {
     recentCountInput.value = String(settings.recentCount);

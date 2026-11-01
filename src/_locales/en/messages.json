@@ -71,5 +71,9 @@
   },
   "optionLetterFavicons": {
     "message": "Debug: letter icons only"
+  },
+  "optionSnapshotCap": {
+    "message": "Snapshot size",
+    "description": "Snapshot resolution for recently closed tabs"
   }
 }

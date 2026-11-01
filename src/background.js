@@ -14,8 +14,18 @@ const SNAPSHOT_MESSAGE = 'ntp:snapshots';
 // 10 MB quota.
 const SNAPSHOT_CAPTURE_QUALITY = 80;
 const SNAPSHOT_QUALITY = 70;
-const SNAPSHOT_MAX_WIDTH = 1920;
-const SNAPSHOT_MAX_HEIGHT = 1080;
+
+// The cap is a user setting, so it lives in storage.local where both the new
+// tab page and this worker can see it. Boxes are 16:9 and named by their short
+// side, the way displays are sold.
+const SNAPSHOT_CAP_KEY = 'ntp-snapshot-cap';
+const SNAPSHOT_CAP_DEFAULT = 1080;
+const SNAPSHOT_CAPS = {
+  720: { width: 1280, height: 720 },
+  1080: { width: 1920, height: 1080 },
+  1440: { width: 2560, height: 1440 },
+  2160: { width: 3840, height: 2160 },
+};
 
 // One open entry per live tab. A tab the user has not revisited still needs its
 // entry to become a closed snapshot, so the cap covers a window's worth of
@@ -100,21 +110,37 @@ async function blobToDataUrl(blob) {
   return `${DATA_URL_PREFIX}${blob.type}${BASE64_MARKER}${btoa(binary)}`;
 }
 
+// A missing or malformed setting is not worth an error: the default cap is
+// always a sane answer, so this never rejects.
+async function readSnapshotCap() {
+  try {
+    const values = await api.storage?.local?.get(SNAPSHOT_CAP_KEY);
+    const cap = SNAPSHOT_CAPS[Number(values?.[SNAPSHOT_CAP_KEY])];
+
+    if (cap) {
+      return cap;
+    }
+  } catch {
+    // Fall through to the default.
+  }
+
+  return SNAPSHOT_CAPS[SNAPSHOT_CAP_DEFAULT];
+}
+
 // Capture already costs a browser call, so re-encode only when the frame is
-// larger than 1080p; the canvas path is best-effort and falls back silently.
+// larger than the chosen cap; the canvas path is best-effort and falls back
+// silently.
 async function downscale(dataUrl) {
   try {
+    const cap = await readSnapshotCap();
     const bitmap = await createImageBitmap(dataUrlToBlob(dataUrl));
 
-    if (bitmap.width <= SNAPSHOT_MAX_WIDTH && bitmap.height <= SNAPSHOT_MAX_HEIGHT) {
+    if (bitmap.width <= cap.width && bitmap.height <= cap.height) {
       bitmap.close();
       return dataUrl;
     }
 
-    const scale = Math.min(
-      SNAPSHOT_MAX_WIDTH / bitmap.width,
-      SNAPSHOT_MAX_HEIGHT / bitmap.height,
-    );
+    const scale = Math.min(cap.width / bitmap.width, cap.height / bitmap.height);
     const canvas = new OffscreenCanvas(
       Math.round(bitmap.width * scale),
       Math.round(bitmap.height * scale),

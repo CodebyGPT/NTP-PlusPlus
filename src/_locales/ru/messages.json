@@ -71,5 +71,9 @@
   },
   "optionLetterFavicons": {
     "message": "Отладка: только буквенные значки"
+  },
+  "optionSnapshotCap": {
+    "message": "Размер снимка",
+    "description": "Разрешение снимков закрытых вкладок"
   }
 }

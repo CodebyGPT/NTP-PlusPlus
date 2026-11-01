@@ -2246,6 +2246,43 @@ async function cardsScenario(page, errors) {
   });
 
 
+  await check('cards', 'the snapshot size setting offers four caps', async () => {
+    const options = await page.evaluate(`(() => {
+      const select = document.getElementById('opt-snapshot-cap');
+      return {
+        values: [...select.options].map((option) => option.value),
+        labels: [...select.options].map((option) => option.textContent),
+        selected: select.value,
+      };
+    })()`);
+    assert(
+      options.values.join(',') === '720,1080,1440,2160',
+      `options are ${options.values.join(',')}`,
+    );
+    assert(
+      options.labels.join(',') === '720P,1080P,2K,4K',
+      `labels are ${options.labels.join(',')}`,
+    );
+    assert(options.selected === '1080', `default is ${options.selected}`);
+
+    await page.evaluate(`(() => {
+      const select = document.getElementById('opt-snapshot-cap');
+      select.value = '2160';
+      select.dispatchEvent(new Event('change'));
+    })()`);
+    const after = await page.evaluate(
+      `localStorage.getItem('ntp-snapshot-cap')`,
+    );
+    assert(after === '2160', `stored ${after}`);
+
+    await page.evaluate(`(() => {
+      const select = document.getElementById('opt-snapshot-cap');
+      select.value = '1080';
+      select.dispatchEvent(new Event('change'));
+    })()`);
+    return `default 1080P, then ${after}`;
+  });
+
   await check('cards', 'privileged pages get a card with a letter icon', async () => {
     // Privileged pages can never be captured, and the favicon store only knows
     // web pages, so both the bar and the snapshot fall back to the initial.

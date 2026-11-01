@@ -222,7 +222,7 @@ element.append(createSiteIcon({ url, title, favicon, variant: 'tile' }));
 - 没有快照时（标签页还没机会被截到）快照区居中显示站点图标，尺寸 `--ntp-card-placeholder-size`（2.5rem）比标题栏里的大一圈，但远小于卡片：占位图标**不能**铺满快照区，它同样是 `.site-icon`（`variant: 'placeholder'`），尺寸由 `--site-icon-size` 决定，`opacity: 0.55` 让它退到背景。注意快照图片的 `inline-size: 100%` 规则必须写成 `.ntp-card-snapshot img:not(.ntp-card-placeholder)`，否则同属性选择器的特异度会压过图标尺寸，把它拉满整张卡片。
 - 字符数上限：`ResizeObserver`（事件驱动，只在宽度真的变化时触发）监听 `#ntp-recent` 宽度 → 一次布局读 `label.clientWidth`（已扣掉复制按钮让出的位置）→ 隐藏的 `.ntp-card-measure` 量平均字符宽 → `charLimitForWidth()` 得到单侧上限 → 标题和地址各自 `limitLabel()`。CSS 的 `text-overflow: ellipsis` 只是兜底，覆盖“resize 到下一次测量之间”的那一帧。上限不硬编码，宽窄窗口各自算出合适的值。
 - 快照褪色：快照区按卡片深度降饱和，暗示“已关掉”。上限 `--ntp-card-saturation-max: 0.6`、下限 `--ntp-card-saturation-min: 0.1`，中间值由 CSS 按深度插值（`saturate(calc(max - (max - min) * index / max(1, count - 1)))`），所以 3 张时是 60% / 35% / 10%，1 张时只有深度 0、落在上限 60%。中间档不写死：加减一张卡片，插值自己就变了。`max(1, …)` 防止单张卡片除零让整个 `calc()` 失效（失效就完全没有滤镜）。
-- 快照：`background.js` 在标签页变为可见（`tabs.onActivated`、`tabs.onUpdated` 到 `complete`、`windows.onFocusChanged`）时调用 `tabs.captureVisibleTab`，只截当前可见页——已关闭的标签页事后无法补截，所以必须预热。>1080p 才用 `createImageBitmap` + `OffscreenCanvas` 缩到 1920×1080（卡片最大也就一千多像素宽，720p 再放大就糊了），任何失败都静默回退原图。截图用 `SNAPSHOT_CAPTURE_QUALITY`（80，唯一一次机会，给足细节），缩放重编码用 `SNAPSHOT_QUALITY`（70）。11 张 1080p 快照远低于 `storage.session` 的 10MB 配额。
+- 快照：`background.js` 在标签页变为可见（`tabs.onActivated`、`tabs.onUpdated` 到 `complete`、`windows.onFocusChanged`）时调用 `tabs.captureVisibleTab`，只截当前可见页——已关闭的标签页事后无法补截，所以必须预热。>1080p 才用 `createImageBitmap` + `OffscreenCanvas` 缩到 1920×1080（卡片最大也就一千多像素宽，720p 再放大就糊了），压缩上限来自“快照尺寸”设置（见“设置弹窗”一节），读不到就用 1080P。任何失败都静默回退原图。截图用 `SNAPSHOT_CAPTURE_QUALITY`（80，唯一一次机会，给足细节），缩放重编码用 `SNAPSHOT_QUALITY`（70）。11 张 1080p 快照远低于 `storage.session` 的 10MB 配额。
 - 快照槽位：`storage.session`（浏览器只放内存、不落盘、关闭即清空）里维护两个数组：打开中的标签页（按 `tabId` 去重，上限 8 条）和已关闭的环形槽（上限 3 条，按 `url` 去重后覆盖最旧的）。`tabs.onRemoved` 把开着的条目挪进环形槽，槽位满就自然挤掉最旧的，不需要任何定期清理逻辑，因此不存在“异常没清掉导致内存膨胀”。Firefox < 115 没有 `storage.session`，回退成 worker 内的普通对象。
 - 新标签页通过 `runtime.sendMessage({ type: 'ntp:snapshots' })` 取快照，按 `url` 与会话列表配对；同一个 `url` 的多个会话只消费一份快照。
 - `background.js` 是不含 `import`/`export` 的经典脚本：Chrome 只能加载 `service_worker`，Firefox 不支持 `service_worker`（109–120 甚至会因为声明了它而完全不启动后台），所以 `build.mjs` 按 target 分别写 `background.service_worker` 与 `background.scripts`。
@@ -241,6 +241,7 @@ element.append(createSiteIcon({ url, title, favicon, variant: 'tile' }));
 - “排除已收藏的网站”：`bookmarks.getTree()` 递归收集 http/https 条目的主机名并去掉 `www.` 前缀，按主机名精确匹配（`baike.baidu.com` 不会被 `baidu.com` 的收藏跳过）。
 - Chromium 上该选项置灰禁用：Chromium 的 topSites 只有 10 条，排除后瓦片会留空。这只是前端 `disabled`，不做防止强行开启的防御逻辑。
 - “Firefox 风格瓦片”：只切 `body` 的 class，纯视觉开关，不影响任何列表逻辑；默认跟随浏览器判定。
+- “快照尺寸”：下拉 720P/1080P/2K/4K，存 `ntp-snapshot-cap`（值就是短边像素 720/1080/1440/2160），默认 1080。它同时被镜像到 `storage.local`，因为真正做缩放的是后台脚本，而 service worker 读不到新标签页的 `localStorage`——两处都写，任一处被清掉都还能自愈。不检测屏幕分辨率，所有机器默认 1080P。
 - “最近关闭卡片最大显示数”：下拉 1/2/3，存 `ntp-recent-count`，默认 3。改动后重新取一次列表重渲染，多出的卡片直接不渲染（不是隐藏），所以 DOM 里永远不会超过选中的张数。
 - “排除特权页面”：勾选（默认）时只收 http/https 会话，退回到“卡片只放网页”的老行为；取消勾选就让 `chrome://`、`about:`、`file://` 也进卡片。存 `ntp-exclude-privileged`，改动后立刻重新取列表重渲染。实现是一条 `{ webOnly }` 选项穿过 `buildRecentCards()` → `toRecentSessions()`，两套过滤规则都在 `stack.js` 里，UI 只负责传布尔值。
 - “排除窗口”：勾选后 window 型条目不再变成卡片；默认**不勾选**（关掉整个窗口通常比关掉一个标签页更值得恢复）。存 `ntp-exclude-windows`，同样即时重渲染。窗口卡片内部的标签页过滤与“排除特权页面”共用同一个 `webOnly` 开关。
@@ -283,6 +284,7 @@ npm run build
 - [ ] 没有快照的卡片在快照区居中显示 favicon（Firefox 显示首字母），不是一片空白，也没有被拉满整张卡片
 - [ ] 快照只在内存里（重启浏览器后为空），超 1080p 的已压到 1080p
 - [ ] 设置里改“最近关闭卡片最大显示数”立即生效，刷新后仍保持
+- [ ] 设置里改“快照尺寸”后，新截的快照按新上限缩放（720P 明显更小、4K 几乎不缩），刷新后保持；从没打开过设置时默认 1080P
 - [ ] “排除特权页面”默认勾选时 `chrome://` 页面不出卡片，取消勾选后立刻出现；刷新后保持上次的选择
 - [ ] 关掉一个窗口后出现窗口卡片：标题栏无图标、标题是“包含…等 N 个标签页”，正文是横竖居中的标签页列表，装不下的行换成最后一行 `…`
 - [ ] 窗口卡片的每一行前面有该标签页的 favicon，整行（图标 + 文本）在卡片里横竖居中
