@@ -70,6 +70,8 @@ npm run build
 
 构建会校验源码中是否出现轮询/网络 API、manifest 是否可解析、产物文件是否齐全。
 
+发布用的两个 zip 由 `npm run package` 生成（`scripts/package.mjs` → `dist/NTPPlusPlus-{chrome,firefox}-<版本>.zip`）。zip 是手写的：Windows 上 `Compress-Archive` 和 .NET 的 `ZipFile` 都会把条目名写成反斜杠，而 Firefox 读这种包会直接判定为"已损坏"，必须用正斜杠。`test/package.test.mjs` 盯住这一点。Firefox 正式安装还要求签名，未签名包只能用 `about:debugging` 临时载入。
+
 ### 8. 多语言
 
 - 所有用户可见文案通过 `src/i18n.js` 的 `t()` 或 HTML 的 `data-i18n` 获取，不在 JS/HTML 中硬编码。
