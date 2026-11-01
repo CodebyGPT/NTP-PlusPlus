@@ -91,6 +91,10 @@
   "sessionHeaderClosed": {
     "message": "Закрыто"
   },
+  "sessionRelative": {
+    "message": "($1)",
+    "description": "A relative time in brackets"
+  },
   "sessionRestore": {
     "message": "Восстановить"
   },

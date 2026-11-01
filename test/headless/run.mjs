@@ -231,7 +231,7 @@ function buildBrowserMock(catalog) {
         }
         const values =
           typeof substitutions === 'string' ? [substitutions] : substitutions || [];
-        return entry.message.replace(/\\$([A-Za-z0-9_@]+)\\$/g, (match, name) => {
+        let out = entry.message.replace(/\\$([A-Za-z0-9_@]+)\\$/g, (match, name) => {
           const placeholder = entry.placeholders && entry.placeholders[name];
           if (!placeholder) {
             return match;
@@ -239,6 +239,11 @@ function buildBrowserMock(catalog) {
           const index = Number(String(placeholder.content).replace(/\\$/g, ''));
           return Number.isInteger(index) && index > 0 ? String(values[index - 1] || '') : match;
         });
+        // $1..$9 are predefined placeholders, so they never need declaring.
+        for (let index = 0; index < values.length; index += 1) {
+          out = out.split('$' + (index + 1)).join(String(values[index] || ''));
+        }
+        return out;
       },
     },
     topSites: {
@@ -2564,6 +2569,18 @@ async function cardsScenario(page, errors) {
         listFirst: document.getElementById('ntp-recent').firstElementChild === list,
         listIndex: getComputedStyle(list).getPropertyValue('--ntp-card-index').trim(),
         cardCount: document.querySelectorAll('.ntp-card:not(.ntp-session-list)').length,
+        // The list shows one bar of itself; the card below it sits a full step
+        // further down, which is what makes the strip that tall.
+        listStrip: (() => {
+          const listTop = list.getBoundingClientRect().top;
+          const next = [...document.querySelectorAll('.ntp-card:not(.ntp-session-list)')]
+            .map((card) => card.getBoundingClientRect().top)
+            .sort((a, b) => a - b)[0];
+          const bar = Number.parseFloat(
+            getComputedStyle(list).getPropertyValue('--ntp-card-bar-block-size'),
+          ) * Number.parseFloat(getComputedStyle(document.documentElement).fontSize);
+          return { strip: Math.round(next - listTop), bar: Math.round(bar) };
+        })(),
       };
     })()`);
 
@@ -2577,11 +2594,20 @@ async function cardsScenario(page, errors) {
       `list stack index: ${info.listIndex} for ${info.cardCount} cards`,
     );
     assert(
+      Math.abs(info.listStrip.strip - info.listStrip.bar) < 3,
+      `the list peaks by more than one bar: ${info.listStrip.strip}px vs ${info.listStrip.bar}px`,
+    );
+    assert(
       info.headings.filter(Boolean).length >= 4,
       `column headings missing: ${info.headings.join('|')}`,
     );
     assert(info.kinds[2].includes('·'), `window row has no tab count: ${info.kinds[2]}`);
     assert(info.lastTimes[0] !== '', 'a closed time was dropped');
+    // Absolute time first, then the bracketed relative time.
+    assert(
+      /\d.*\(.+\)$/.test(info.lastTimes[0]),
+      `no relative time in brackets: ${info.lastTimes[0]}`,
+    );
     assert(info.columns.every((count) => count === 6), `row cells: ${info.columns.join(',')}`);
     assert(info.hasExpand && info.childrenHidden === true, 'the window row is not collapsed');
     assert(info.childrenCount === 2, `window children: ${info.childrenCount}`);

@@ -239,13 +239,13 @@ element.append(createSiteIcon({ url, title, favicon, variant: 'tile' }));
 ### 常驻会话托盘
 
 - 它**不受设置影响**：卡片显示几张、是否排除窗口、是否排除特权页面，都只影响上面的卡片组，托盘永远列出 `sessions.getRecentlyClosed()` 返回的全部条目（无法恢复的 `data:`/`blob:`/`javascript:` 和浏览器空白页照样跳过，这不是设置，是没法恢复）。
-- 它**就是塔里的一张普通卡片**，不是另一套布局：元素同时带 `.ntp-card`（同一份框体、圆角、阴影、`aspect-ratio`、阶梯 `transform`）和 `.ntp-session-list`（只负责内部是表头 + 行而不是快照）。渲染上它排在 `#ntp-recent` 的第一个子节点（画在最后面），索引取 `--ntp-card-index` = 卡片张数，也就是比最旧那张卡片再高一级台阶，所以默认只露出约 1.5 倍标题栏高的一条（正好是表头那一行）；指针移上去时其余卡片下滑，把它整块让出来。
+- 它**就是塔里的一张普通卡片**，不是另一套布局：元素同时带 `.ntp-card`（同一份框体、圆角、阴影、`aspect-ratio`、阶梯 `transform`）和 `.ntp-session-list`（只负责内部是表头 + 行而不是快照）。渲染上它排在 `#ntp-recent` 的第一个子节点（画在最后面），索引取 `--ntp-card-index` = 卡片张数，也就是比最旧那张卡片再高一级台阶；不过它只露出 **1 倍**标题栏高（`--ntp-session-peek`），补偿量是 `--ntp-card-step - --ntp-session-peek`，同时从舞台的 `margin-block-start` 里扣掉同样多，塔顶才不会空出一条。指针移上去时其余卡片下滑，把它整块让出来。
 - 设置里的“最近关闭卡片最大显示数”**只数普通卡片**：详细列表不参与计数、不占名额，设成 1 时照样是“1 张卡片 + 这张列表”。舞台的上边距按 `--ntp-stack-count`（卡片数 + 1）预留，所以塔顶不会空出一条，列表的表头也不会顶到瓦片上。
 - 一条会话都没有时整块 `hidden`（`renderSessionList()` 里按行数切），不留一条空表头，舞台也自动少预留一级。
 - 指针移到露出的那条表头上（或键盘 Tab 进托盘）时，其余卡片一起下滑到与悬停其它卡片相同的落点，把列表让出来：`body.ntp-session-open .ntp-card:not(.ntp-session-list) { inset-block-start: calc(100% - var(--ntp-card-overhang) - var(--ntp-card-peek)) }`。这个 class 由 `pointerenter`/`pointerleave`/`focusin`/`focusout` 切换，**不用** `:has()`——列表在卡片后面，Firefox 121 以下没有 `:has()` 时它永远点不到。
 - 它不贴着视口底边：和别的卡片一样按屏幕比例算出高度、四角都是 `--ntp-card-radius`，内容多了就在卡片内部滚动（表头 `position: sticky`）。
 - 表头一行是列名 + 最右边的“恢复”按钮（`#ntp-session-restore`）；没勾选任何行时 `disabled`，靠 `opacity` 变灰但**不离场**，否则表头会跳一下。这一格 `position: sticky; inset-inline-end: 0` 并带自己的背景色：列宽是固定的，窗口一窄整张表就要横向滚动，按钮必须钉在滚动视口右边才不会滑出去点不到。
-- 每一行：左边复选框，然后图标（同一个 `createSiteIcon()`）、标题、链接、类型、关闭时间（`Intl.DateTimeFormat`，短日期 + 时间；原始时间戳挂在 `title` 上）。标签页行是普通行；窗口行默认折叠成一行（类型列显示“窗口 · N”），左侧多一个展开按钮（原生 `<button aria-expanded>` 切换子行的 `hidden`，展开不重新渲染，勾选状态不会丢），展开后逐行列出它包含的标签页。
+- 每一行：左边复选框，然后图标（同一个 `createSiteIcon()`）、标题、链接、类型、关闭时间（`Intl.DateTimeFormat` 的短日期 + 时间，后面跟一个括号里的相对时间；原始时间戳挂在 `title` 上）。相对时间用原生 `Intl.RelativeTimeFormat`，文案由浏览器按界面语言给出、不需要自己翻译；**只有括号本身来自 `sessionRelative` 这个词条**，因为中文用全角 `（ ）`、英文和俄文用半角 `( )`，不能共用一套符号。绝对时间与相对时间的粒度都在 `formatClosedTime()` 里，按秒/分/时/天/周/月/年逐级退化。标签页行是普通行；窗口行默认折叠成一行（类型列显示“窗口 · N”），左侧多一个展开按钮（原生 `<button aria-expanded>` 切换子行的 `hidden`，展开不重新渲染，勾选状态不会丢），展开后逐行列出它包含的标签页。
 - 行模型在 `stack.js` 的 `buildSessionRows()` 里，纯函数、可单测：tab 条目 → 一行，window 条目 → 一行外加 `tabs`；`lastModified` 经 `toEpochMillis()` 归一，取不到就是 0（显示为空而不是 NaN）。**文档说是毫秒，但 Chromium 实际给的常常是秒**，直接格式化会显示成 1970 年；小于 `EPOCH_MILLIS_CUTOFF`（1e11，本世纪之前）的值一律乘 1000，两种口径都能落到正确的时刻。
 - 列宽可拖：每列表头右边缘有一条 `.ntp-session-resizer`，`pointerdown` + 拖拽只改托盘上的一个自定义属性（`--ntp-session-col-<列>` = `max(3rem, Npx)`），表头与所有行共用同一份 `grid-template-columns`，所以天然对齐；总宽超出托盘时托盘整体横向滚动。注意 **不能** 把整串 `grid-template-columns` 存进一个 `--ntp-session-columns` token：CSS 的 `var()` 间接引用在声明处解析，托盘上拖出来的宽度会被 `:root` 里的旧值吃掉，必须把 track 列表直接写在规则里。
 - 恢复：勾选若干行后点表头按钮，逐个 `sessions.restore(sessionId)`（一次失败不影响其余），然后清空勾选、重新取列表。
@@ -299,10 +299,10 @@ npm run build
 - [ ] 快照按深度褪色：3 张时 60% / 35% / 10%，只显示 1 张时是 60%
 - [ ] 没有快照的卡片在快照区居中显示 favicon（Firefox 显示首字母），不是一片空白，也没有被拉满整张卡片
 - [ ] 快照只在内存里（重启浏览器后为空），超 1080p 的已压到 1080p
-- [ ] 详细列表就是塔里最靠后的一张卡（同一套框体/圆角/阴影/阶梯缩放），默认只露出约 1.5 倍标题栏高的一条表头，其余被前面的卡片盖住；行数、类型（窗口/标签页）、关闭时间都对得上 `sessions.getRecentlyClosed()`
+- [ ] 详细列表就是塔里最靠后的一张卡（同一套框体/圆角/阴影/阶梯缩放），默认只露出 1 倍标题栏高的一条表头，其余被前面的卡片盖住；行数、类型（窗口/标签页）、关闭时间都对得上 `sessions.getRecentlyClosed()`
 - [ ] 列表不受设置影响：把“最近关闭卡片最大显示数”改成 1、勾上“排除窗口”，列表里照样是完整内容，且卡片只有 1 张 + 这张列表
 - [ ] 勾选若干行后“恢复”按钮才可用，点它能把选中的会话恢复回来并刷新；未勾选时是灰的但仍在原位
-- [ ] 关闭时间显示的是真实时刻而不是 1970 年（Chromium 的 `lastModified` 是秒，`toEpochMillis()` 会补齐）
+- [ ] 关闭时间显示的是真实时刻而不是 1970 年（Chromium 的 `lastModified` 是秒，`toEpochMillis()` 会补齐），后面跟着“（3 分钟前）”这种相对时间，中文是全角括号、英文/俄文是半角括号
 - [ ] 窗口行能展开/收起它包含的标签页，展开时勾选状态不丢
 - [ ] 拖动表头列边缘能改列宽，表头和数据行始终对齐，内容超宽时列表横向滚动，而“恢复”按钮始终钉在右侧可见可点
 - [ ] 指针移到列表露出的表头（或 Tab 进去）时其余卡片下滑、列表完整露出；指针移开后又滑回原位

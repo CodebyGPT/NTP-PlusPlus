@@ -74,6 +74,24 @@ const SESSION_CLOSED_FORMAT = new Intl.DateTimeFormat(undefined, {
   dateStyle: 'short',
   timeStyle: 'short',
 });
+// Native relative formatting keeps the wording localised without translation
+// work; only the brackets around it come from the message files, because a
+// Chinese sentence uses full-width ones and English does not.
+const SESSION_RELATIVE_FORMAT = new Intl.RelativeTimeFormat(undefined, {
+  numeric: 'auto',
+});
+const SESSION_SECONDS = 1000;
+const SESSION_MONTH_SECONDS = 2629800; // 30.44 days, the average calendar month
+const SESSION_YEAR_SECONDS = 31557600; // 365.25 days
+const SESSION_RELATIVE_STEPS = [
+  { limit: 60, divisor: 1, unit: 'second' },
+  { limit: 3600, divisor: 60, unit: 'minute' },
+  { limit: 86400, divisor: 3600, unit: 'hour' },
+  { limit: 604800, divisor: 86400, unit: 'day' },
+  { limit: SESSION_MONTH_SECONDS, divisor: 604800, unit: 'week' },
+  { limit: SESSION_YEAR_SECONDS, divisor: SESSION_MONTH_SECONDS, unit: 'month' },
+  { limit: Infinity, divisor: SESSION_YEAR_SECONDS, unit: 'year' },
+];
 
 const tilesElement = document.getElementById('ntp-tiles');
 const settingsButton = document.getElementById('ntp-settings-button');
@@ -910,6 +928,20 @@ const selectedSessions = new Set();
 // A pinned row is a checkbox, the site icon, and then the fields the API gives
 // us. The window row carries a disclosure button instead of a second copy of
 // its tabs, which stay in child rows until it is opened.
+function formatClosedTime(stamp) {
+  if (!stamp) {
+    return '';
+  }
+  const absolute = SESSION_CLOSED_FORMAT.format(new Date(stamp));
+  const elapsed = (Date.now() - stamp) / SESSION_SECONDS;
+  const step = SESSION_RELATIVE_STEPS.find((entry) => elapsed < entry.limit);
+  const relative = SESSION_RELATIVE_FORMAT.format(
+    -Math.round(elapsed / step.divisor),
+    step.unit,
+  );
+  return `${absolute} ${t('sessionRelative', [relative])}`;
+}
+
 function createSessionRow(row) {
   const element = document.createElement('div');
   element.className = `ntp-session-entry is-${row.kind}`;
@@ -971,9 +1003,7 @@ function createSessionRow(row) {
 
   const time = document.createElement('span');
   time.className = 'ntp-session-time';
-  time.textContent = row.lastModified
-    ? SESSION_CLOSED_FORMAT.format(new Date(row.lastModified))
-    : '';
+  time.textContent = formatClosedTime(row.lastModified);
   if (row.lastModified) {
     time.title = new Date(row.lastModified).toISOString();
   }
