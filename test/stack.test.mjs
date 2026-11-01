@@ -235,6 +235,15 @@ assert.equal(
 );
 // A window with nothing restorable inside is dropped instead of listed empty.
 assert.deepEqual(buildSessionRows([{ window: { sessionId: 'w2', tabs: [] } }]), []);
+
+// Chromium hands out seconds where the docs promise milliseconds; both have to
+// land on the same instant instead of somewhere in 1970.
+assert.equal(
+  buildSessionRows([
+    { tab: { sessionId: 's1', url: 'https://s.example/' }, lastModified: 1700000000 },
+  ])[0].lastModified,
+  1700000000000,
+);
 // webOnly still filters privileged pages for people who asked for it.
 assert.equal(
   buildSessionRows([{ tab: { sessionId: 't3', url: 'chrome://settings/' } }], { webOnly: true })

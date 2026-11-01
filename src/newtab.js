@@ -40,7 +40,7 @@ const SNAPSHOT_CAP_OPTIONS = [720, 1080, 1440, 2160];
 const DEFAULT_SNAPSHOT_CAP = 1080;
 const RECENT_COUNT_KEY = 'ntp-recent-count';
 const RECENT_COUNT_OPTIONS = [1, 2, 3];
-const DEFAULT_RECENT_COUNT = 3;
+const DEFAULT_RECENT_COUNT = 2;
 // The background script answers this; both sides spell it out because a
 // classic service-worker script cannot import shared modules on Firefox.
 const SNAPSHOT_MESSAGE = 'ntp:snapshots';

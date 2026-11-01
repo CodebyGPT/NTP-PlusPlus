@@ -1795,13 +1795,30 @@ async function cardsScenario(page, errors) {
   // the headless window's default 758x391 leaves them only a few dozen px tall.
   await setViewport(page, CARD_VIEWPORT_WIDTH, CARD_VIEWPORT_HEIGHT);
   await loadPage(page, { preload: 'cards', clearStorage: true });
-  await page.waitFor(`document.querySelectorAll('.ntp-card:not(.ntp-session-list)').length === 3`, {
+  await page.waitFor(`document.querySelectorAll('.ntp-card:not(.ntp-session-list)').length === 2`, {
     timeout: 10000,
-    label: '3 recent cards',
+    label: '2 recent cards',
   });
   await sleep(300);
 
+  await check('cards', 'the recent count defaults to 2', async () => {
+    const value = await page.evaluate(
+      `document.getElementById('opt-recent-count').value`,
+    );
+    assert(value === '2', `default is ${value}`);
+    return `default ${value}`;
+  });
+
   await check('cards', 'caps the stack at 3 and paints the newest on top', async () => {
+    await page.evaluate(`(() => {
+      const select = document.getElementById('opt-recent-count');
+      select.value = '3';
+      select.dispatchEvent(new Event('change'));
+    })()`);
+    await page.waitFor(`document.querySelectorAll('.ntp-card:not(.ntp-session-list)').length === 3`, {
+      timeout: 3000,
+      label: 'three cards',
+    });
     const hrefs = await page.evaluate(
       `[...document.querySelectorAll('.ntp-card-open')].map((link) => link.href)`,
     );
@@ -2225,11 +2242,7 @@ async function cardsScenario(page, errors) {
     return ratios.map((ratio) => ratio.toFixed(2)).join(' / ');
   });
 
-  await check('cards', 'settings limit defaults to 3 and applies 1', async () => {
-    const value = await page.evaluate(
-      `document.getElementById('opt-recent-count').value`,
-    );
-    assert(value === '3', `default is ${value}`);
+  await check('cards', 'the settings limit applies 1', async () => {
     await page.evaluate(`(() => {
       const select = document.getElementById('opt-recent-count');
       select.value = '1';
@@ -2701,7 +2714,38 @@ async function cardsScenario(page, errors) {
       `the stack did not come back: ${closed.top} vs ${base.cardTop}`,
     );
 
-    return `${info.rows} rows, tray flush at the bottom, restore wired`;
+    return `${info.rows} rows, list card at the back, restore wired`;
+  });
+
+  await check('cards', 'a narrow window keeps the restore button reachable', async () => {
+    await setViewport(page, 640, 800);
+    // The columns keep their widths, so the list scrolls sideways; the button
+    // has to stay pinned to the right edge of the scrollport either way.
+    await page.evaluate(
+      `document.getElementById('ntp-session-list').scrollLeft = 0`,
+    );
+    const where = await page.evaluate(`(() => {
+      const button = document.getElementById('ntp-session-restore');
+      const box = button.getBoundingClientRect();
+      const hit = document.elementFromPoint(
+        box.left + box.width / 2,
+        box.top + box.height / 2,
+      );
+      return {
+        right: Math.round(box.right),
+        width: Math.round(box.width),
+        viewport: window.innerWidth,
+        scrollLeft: Math.round(document.getElementById('ntp-session-list').scrollLeft),
+        hit: hit === button || button.contains(hit),
+      };
+    })()`);
+    assert(
+      where.right <= where.viewport,
+      `the restore button is off screen: ${where.right} > ${where.viewport}`,
+    );
+    assert(where.hit === true, 'the restore button is not clickable');
+    await setViewport(page, CARD_VIEWPORT_WIDTH, CARD_VIEWPORT_HEIGHT);
+    return `button at ${where.right} of ${where.viewport}`;
   });
 
   await check('cards', 'no uncaught page errors', async () => {

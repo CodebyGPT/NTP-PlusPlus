@@ -960,8 +960,16 @@ body.ntp-session-open .ntp-card:not(.ntp-session-list) {
 }
 
 .ntp-session-actions {
+  /* Pinned to the right edge of the scrollport: the columns are fixed widths,
+     so a narrow window scrolls them sideways and would otherwise carry the
+     restore button out of reach. */
+  position: sticky;
+  inset-inline-end: 0;
+  z-index: 1;
   display: flex;
   justify-content: flex-end;
+  padding-inline-start: var(--ntp-session-padding);
+  background-color: var(--ntp-card-bar-bg);
 }
 
 .ntp-session-restore {

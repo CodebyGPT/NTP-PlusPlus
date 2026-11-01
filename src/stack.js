@@ -210,11 +210,23 @@ function windowCard(window, options) {
 // session, with a window row carrying its tabs for the expander. Ordering is
 // the API's own (most recent first) and nothing here is capped or filtered by
 // settings -- the list is a complete picture, not a preview.
+// Session timestamps are documented as milliseconds, but Chromium reports
+// seconds; anything small enough to predate this century is read as seconds.
+const EPOCH_MILLIS_CUTOFF = 1e11;
+
+function toEpochMillis(value) {
+  const stamp = Number(value);
+  if (!Number.isFinite(stamp) || stamp <= 0) {
+    return 0;
+  }
+  return stamp < EPOCH_MILLIS_CUTOFF ? stamp * 1000 : stamp;
+}
+
 export function buildSessionRows(sessions, { webOnly = false } = {}) {
   const rows = [];
 
   for (const entry of sessions ?? []) {
-    const lastModified = Number(entry?.lastModified) || 0;
+    const lastModified = toEpochMillis(entry?.lastModified);
 
     if (entry?.window) {
       const tabs = windowTabs(entry.window, { webOnly });

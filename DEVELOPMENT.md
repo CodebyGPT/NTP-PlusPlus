@@ -244,9 +244,9 @@ element.append(createSiteIcon({ url, title, favicon, variant: 'tile' }));
 - 一条会话都没有时整块 `hidden`（`renderSessionList()` 里按行数切），不留一条空表头，舞台也自动少预留一级。
 - 指针移到露出的那条表头上（或键盘 Tab 进托盘）时，其余卡片一起下滑到与悬停其它卡片相同的落点，把列表让出来：`body.ntp-session-open .ntp-card:not(.ntp-session-list) { inset-block-start: calc(100% - var(--ntp-card-overhang) - var(--ntp-card-peek)) }`。这个 class 由 `pointerenter`/`pointerleave`/`focusin`/`focusout` 切换，**不用** `:has()`——列表在卡片后面，Firefox 121 以下没有 `:has()` 时它永远点不到。
 - 它不贴着视口底边：和别的卡片一样按屏幕比例算出高度、四角都是 `--ntp-card-radius`，内容多了就在卡片内部滚动（表头 `position: sticky`）。
-- 表头一行是列名 + 最右边的“恢复”按钮（`#ntp-session-restore`）；没勾选任何行时 `disabled`，靠 `opacity` 变灰但**不离场**，否则表头会跳一下。
+- 表头一行是列名 + 最右边的“恢复”按钮（`#ntp-session-restore`）；没勾选任何行时 `disabled`，靠 `opacity` 变灰但**不离场**，否则表头会跳一下。这一格 `position: sticky; inset-inline-end: 0` 并带自己的背景色：列宽是固定的，窗口一窄整张表就要横向滚动，按钮必须钉在滚动视口右边才不会滑出去点不到。
 - 每一行：左边复选框，然后图标（同一个 `createSiteIcon()`）、标题、链接、类型、关闭时间（`Intl.DateTimeFormat`，短日期 + 时间；原始时间戳挂在 `title` 上）。标签页行是普通行；窗口行默认折叠成一行（类型列显示“窗口 · N”），左侧多一个展开按钮（原生 `<button aria-expanded>` 切换子行的 `hidden`，展开不重新渲染，勾选状态不会丢），展开后逐行列出它包含的标签页。
-- 行模型在 `stack.js` 的 `buildSessionRows()` 里，纯函数、可单测：tab 条目 → 一行，window 条目 → 一行外加 `tabs`；`lastModified` 解析成数字，取不到就是 0（显示为空而不是 NaN）。
+- 行模型在 `stack.js` 的 `buildSessionRows()` 里，纯函数、可单测：tab 条目 → 一行，window 条目 → 一行外加 `tabs`；`lastModified` 经 `toEpochMillis()` 归一，取不到就是 0（显示为空而不是 NaN）。**文档说是毫秒，但 Chromium 实际给的常常是秒**，直接格式化会显示成 1970 年；小于 `EPOCH_MILLIS_CUTOFF`（1e11，本世纪之前）的值一律乘 1000，两种口径都能落到正确的时刻。
 - 列宽可拖：每列表头右边缘有一条 `.ntp-session-resizer`，`pointerdown` + 拖拽只改托盘上的一个自定义属性（`--ntp-session-col-<列>` = `max(3rem, Npx)`），表头与所有行共用同一份 `grid-template-columns`，所以天然对齐；总宽超出托盘时托盘整体横向滚动。注意 **不能** 把整串 `grid-template-columns` 存进一个 `--ntp-session-columns` token：CSS 的 `var()` 间接引用在声明处解析，托盘上拖出来的宽度会被 `:root` 里的旧值吃掉，必须把 track 列表直接写在规则里。
 - 恢复：勾选若干行后点表头按钮，逐个 `sessions.restore(sessionId)`（一次失败不影响其余），然后清空勾选、重新取列表。
 
@@ -258,7 +258,7 @@ element.append(createSiteIcon({ url, title, favicon, variant: 'tile' }));
 - Chromium 上该选项置灰禁用：Chromium 的 topSites 只有 10 条，排除后瓦片会留空。这只是前端 `disabled`，不做防止强行开启的防御逻辑。
 - “Firefox 风格瓦片”：只切 `body` 的 class，纯视觉开关，不影响任何列表逻辑；默认跟随浏览器判定。
 - “快照尺寸”：下拉 720P/1080P/2K/4K，存 `ntp-snapshot-cap`（值就是短边像素 720/1080/1440/2160），默认 1080。它同时被镜像到 `storage.local`，因为真正做缩放的是后台脚本，而 service worker 读不到新标签页的 `localStorage`——两处都写，任一处被清掉都还能自愈。不检测屏幕分辨率，所有机器默认 1080P。
-- “最近关闭卡片最大显示数”：下拉 1/2/3，存 `ntp-recent-count`，默认 3。改动后重新取一次列表重渲染，多出的卡片直接不渲染（不是隐藏），所以 DOM 里永远不会超过选中的张数。
+- “最近关闭卡片最大显示数”：下拉 1/2/3，存 `ntp-recent-count`，默认 2。改动后重新取一次列表重渲染，多出的卡片直接不渲染（不是隐藏），所以 DOM 里永远不会超过选中的张数。
 - “排除特权页面”：勾选（默认）时只收 http/https 会话，退回到“卡片只放网页”的老行为；取消勾选就让 `chrome://`、`about:`、`file://` 也进卡片。存 `ntp-exclude-privileged`，改动后立刻重新取列表重渲染。实现是一条 `{ webOnly }` 选项穿过 `buildRecentCards()` → `toRecentSessions()`，两套过滤规则都在 `stack.js` 里，UI 只负责传布尔值。
 - “排除窗口”：勾选后 window 型条目不再变成卡片；默认**不勾选**（关掉整个窗口通常比关掉一个标签页更值得恢复）。存 `ntp-exclude-windows`，同样即时重渲染。窗口卡片内部的标签页过滤与“排除特权页面”共用同一个 `webOnly` 开关。
 - “调试：只用单字母图标”（`#opt-letter-favicons`）：给 `body` 加 `ntp-letter-favicons`，CSS 把 `.ntp-tile-icon img` 藏起来、强制露出 `.ntp-tile-letter`，用来在图标都能加载的页面上直接看首字母兜底的效果。**故意不存**，刷新即回到真实图标——它只是开发期的一副眼镜，不是设置项。
@@ -302,8 +302,9 @@ npm run build
 - [ ] 详细列表就是塔里最靠后的一张卡（同一套框体/圆角/阴影/阶梯缩放），默认只露出约 1.5 倍标题栏高的一条表头，其余被前面的卡片盖住；行数、类型（窗口/标签页）、关闭时间都对得上 `sessions.getRecentlyClosed()`
 - [ ] 列表不受设置影响：把“最近关闭卡片最大显示数”改成 1、勾上“排除窗口”，列表里照样是完整内容，且卡片只有 1 张 + 这张列表
 - [ ] 勾选若干行后“恢复”按钮才可用，点它能把选中的会话恢复回来并刷新；未勾选时是灰的但仍在原位
+- [ ] 关闭时间显示的是真实时刻而不是 1970 年（Chromium 的 `lastModified` 是秒，`toEpochMillis()` 会补齐）
 - [ ] 窗口行能展开/收起它包含的标签页，展开时勾选状态不丢
-- [ ] 拖动表头列边缘能改列宽，表头和数据行始终对齐，内容超宽时托盘横向滚动
+- [ ] 拖动表头列边缘能改列宽，表头和数据行始终对齐，内容超宽时列表横向滚动，而“恢复”按钮始终钉在右侧可见可点
 - [ ] 指针移到列表露出的表头（或 Tab 进去）时其余卡片下滑、列表完整露出；指针移开后又滑回原位
 - [ ] 设置里改“最近关闭卡片最大显示数”立即生效，刷新后仍保持
 - [ ] 设置里改“快照尺寸”后，新截的快照按新上限缩放（720P 明显更小、4K 几乎不缩），刷新后保持；从没打开过设置时默认 1080P
