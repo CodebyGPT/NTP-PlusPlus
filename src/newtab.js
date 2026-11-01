@@ -69,6 +69,7 @@ const SESSION_COLUMN_PROPERTIES = {
   time: '--ntp-session-col-time',
 };
 const SESSION_COLUMN_MIN_WIDTH = '3rem';
+const TRAY_OPEN_CLASS = 'ntp-session-open';
 const SESSION_CLOSED_FORMAT = new Intl.DateTimeFormat(undefined, {
   dateStyle: 'short',
   timeStyle: 'short',
@@ -849,12 +850,13 @@ function renderRecentCards() {
 
   const total = recentCards.length;
   recentElement.style.setProperty('--ntp-card-count', String(Math.max(1, total)));
-  // Later siblings paint on top, so the newest card has to come last.
-  recentElement.replaceChildren(
-    ...[...recentCards]
-      .reverse()
-      .map((card, index) => createCardElement(card, total - 1 - index)),
-  );
+  // The tray is the base of the stack, so it is painted first (later siblings
+  // paint on top) and the newest card comes last.
+  const cards = [...recentCards]
+    .reverse()
+    .map((card, index) => createCardElement(card, total - 1 - index));
+  const children = sessionListElement ? [sessionListElement, ...cards] : cards;
+  recentElement.replaceChildren(...children);
   applyCardText();
 }
 
@@ -1145,6 +1147,7 @@ function renderSessionList(sessions) {
   }
 
   sessionRows = buildSessionRows(sessions);
+  sessionListElement.hidden = sessionRows.length === 0;
   const known = new Set(sessionRows.map((row) => row.sessionId));
   for (const sessionId of [...selectedSessions]) {
     if (!known.has(sessionId)) {
@@ -1176,6 +1179,28 @@ function applyCardAspect() {
   );
 }
 
+function setSessionTrayOpen(open) {
+  document.body.classList.toggle(TRAY_OPEN_CLASS, open);
+}
+
+// The tray is the base of the stack, so pointing at it (or tabbing into it)
+// has to drop the cards above it the way pointing at a card does. The class is
+// driven from events rather than :has(), which older Firefox cannot do.
+function setupSessionTray() {
+  if (!sessionListElement) {
+    return;
+  }
+
+  sessionListElement.addEventListener('pointerenter', () => setSessionTrayOpen(true));
+  sessionListElement.addEventListener('pointerleave', () => setSessionTrayOpen(false));
+  sessionListElement.addEventListener('focusin', () => setSessionTrayOpen(true));
+  sessionListElement.addEventListener('focusout', (event) => {
+    if (!sessionListElement.contains(event.relatedTarget)) {
+      setSessionTrayOpen(false);
+    }
+  });
+}
+
 function setupRecentCards() {
   if (!recentElement) {
     return;
@@ -1189,6 +1214,7 @@ function setupRecentCards() {
     }).observe(recentElement);
   }
 
+  setupSessionTray();
   applyCardAspect();
   refreshRecentCards();
 }

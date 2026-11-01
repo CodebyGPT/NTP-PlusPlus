@@ -1750,7 +1750,11 @@ const cardGeometry = `(() => {
     stageBottom: Math.round(box.bottom),
     stageHeight: Math.round(box.height),
     liftedTop: Math.round(
-      document.querySelectorAll('.ntp-card')[0].getBoundingClientRect().top,
+      Math.min(
+        ...[...stage.children]
+          .filter((child) => !child.hidden)
+          .map((child) => child.getBoundingClientRect().top),
+      ),
     ),
     reserved: Math.round(parseFloat(getComputedStyle(stage).marginBlockStart)),
     screenRatio: window.screen.width / window.screen.height,
@@ -2552,7 +2556,10 @@ async function cardsScenario(page, errors) {
     assert(info.radiusTop !== '0px', `tray top is square: ${info.radiusTop}`);
     assert(info.radiusBottom === '0px', `tray bottom is rounded: ${info.radiusBottom}`);
     assert(info.restoreDisabled === true, 'restore starts enabled with nothing selected');
-    assert(info.cardZ < info.listZ, `cards paint over the tray: ${info.cardZ} vs ${info.listZ}`);
+    assert(
+      info.cardZ > info.listZ,
+      `the tray is not the base layer: ${info.cardZ} vs ${info.listZ}`,
+    );
     assert(
       info.headings.filter(Boolean).length >= 4,
       `column headings missing: ${info.headings.join('|')}`,
@@ -2637,6 +2644,59 @@ async function cardsScenario(page, errors) {
       }
     })()`);
     await recordScreenshot(page, 'cards', 'chrome-session-list.png');
+
+    // The tray is the base of the tower: it is lifted one step above the
+    // oldest card, so a strip of it shows, and pointing at that strip drops
+    // every card the same way pointing at a card drops the ones above it.
+    const base = await page.evaluate(`(() => {
+      const list = document.getElementById('ntp-session-list').getBoundingClientRect();
+      const cards = [...document.querySelectorAll('.ntp-card')];
+      return {
+        listTop: list.top,
+        listBottom: list.bottom,
+        listLeft: list.left,
+        cardTop: Math.min(...cards.map((card) => card.getBoundingClientRect().top)),
+        tops: cards.map((card) => card.getBoundingClientRect().top),
+        classes: document.body.className,
+        width: list.width,
+        cardWidths: cards.map((card) => Math.round(card.getBoundingClientRect().width)),
+        stageWidth: document.getElementById('ntp-recent').getBoundingClientRect().width,
+      };
+    })()`);
+    assert(base.listTop < base.cardTop, `the tray does not peek above the stack: ${base.listTop} vs ${base.cardTop}`);
+    assert(
+      Math.round(base.width) < Math.min(...base.cardWidths),
+      `the tray is not the smallest card: ${Math.round(base.width)} vs ${base.cardWidths.join(',')}`,
+    );
+
+    await page.moveMouse(base.listLeft + base.width / 2, base.listTop + 8);
+    await sleep(600);
+    const lifted = await page.evaluate(`(() => {
+      const cards = [...document.querySelectorAll('.ntp-card')];
+      return {
+        open: document.body.classList.contains('ntp-session-open'),
+        tops: cards.map((card) => Math.round(card.getBoundingClientRect().top)),
+        bar: Math.round(cards[0].querySelector('.ntp-card-bar').getBoundingClientRect().height),
+      };
+    })()`);
+    assert(lifted.open === true, 'pointing at the tray did not open it');
+    assert(
+      lifted.tops.every((top) => top > base.cardTop + 100),
+      `the stack did not drop for the tray: ${lifted.tops.join(',')}`,
+    );
+    await recordScreenshot(page, 'cards', 'chrome-session-list-open.png');
+
+    await page.moveMouse(4, 4);
+    await sleep(600);
+    const closed = await page.evaluate(`(() => ({
+      open: document.body.classList.contains('ntp-session-open'),
+      top: Math.round(document.querySelector('.ntp-card').getBoundingClientRect().top),
+    }))()`);
+    assert(closed.open === false, 'the tray stayed open after the pointer left');
+    assert(
+      Math.abs(closed.top - base.cardTop) < 2,
+      `the stack did not come back: ${closed.top} vs ${base.cardTop}`,
+    );
 
     return `${info.rows} rows, tray flush at the bottom, restore wired`;
   });

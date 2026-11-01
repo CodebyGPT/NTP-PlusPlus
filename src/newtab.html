@@ -15,16 +15,18 @@
         class="ntp-recent"
         data-i18n-aria="recentCardsLabel"
         aria-label="Recently closed tabs"
-      ></section>
+      >
+        <!-- The base of the stack: the detailed list, one step below the
+             oldest card and always in front of nothing. Rebuilt with the
+             cards by renderRecentCards(). -->
+        <section
+          id="ntp-session-list"
+          class="ntp-session-list"
+          data-i18n-aria="sessionListLabel"
+          aria-label="Recently closed sessions"
+        ></section>
+      </section>
 
-      <!-- Pinned to the bottom edge and painted under the card stack: it is the
-           tray the cards sit on. Filled in by newtab.js. -->
-      <section
-        id="ntp-session-list"
-        class="ntp-session-list"
-        data-i18n-aria="sessionListLabel"
-        aria-label="Recently closed sessions"
-      ></section>
     </main>
 
     <button

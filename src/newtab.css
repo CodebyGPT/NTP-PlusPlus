@@ -87,9 +87,6 @@
   --ntp-card-placeholder-size: 2.5rem;
   /* Closed tabs fade out: the nearest snapshot keeps 60% of its color, the
      furthest drops to 10%, everything between is interpolated by depth. */
-  /* A fixed height keeps the visible part of the cards stable; the list
-     scrolls inside instead of resizing the tray row by row. */
-  --ntp-session-block-size: clamp(12rem, 38vh, 24rem);
   --ntp-session-padding: clamp(0.5rem, 1vw, 1rem);
   --ntp-session-gap: 0.5rem;
   --ntp-session-col-select: 2.5rem;
@@ -534,7 +531,9 @@ body.ntp-firefox-style .ntp-tile-link:focus-visible .ntp-tile-icon {
   /* The cards sit in from the window edges a little further than the tiles. */
   inline-size: calc(100% - 2 * var(--ntp-card-gutter));
   margin-inline: auto;
-  margin-block-start: calc((var(--ntp-card-count, 1) - 1) * var(--ntp-card-step));
+  /* One step more than the stack lifts, so the base card always shows a strip
+     of its own without running into the tiles. */
+  margin-block-start: calc(var(--ntp-card-count, 1) * var(--ntp-card-step));
   /* Pull the stage past the bottom edge so the newest card is cut off by the
      viewport instead of ending early. The negative margin keeps the page
      itself exactly one viewport tall. */
@@ -580,14 +579,13 @@ body.ntp-firefox-style .ntp-tile-link:focus-visible .ntp-tile-icon {
   inset-block-start: calc(100% - var(--ntp-card-overhang) - var(--ntp-card-peek));
 }
 
-/* While the pointer is on the tray the stack must stay put: the tray is in
-   front, so a card can only ever be hovered through the gaps, and having the
-   whole stack lurch as the pointer sweeps over the list reads as a bug.
-   :has() is a bonus rule -- without it (Firefox before 121) the tray still
-   covers the cards and nothing moves. */
-body:has(.ntp-session-list:hover) .ntp-card,
-body:has(.ntp-session-list:hover) .ntp-card ~ .ntp-card {
-  inset-block-start: 0;
+/* Pointing at the base layer drops the whole stack the same way pointing at a
+   card drops the ones above it, so the list can be read and clicked. The class
+   is toggled by pointer/focus events rather than with :has(), because the base
+   is behind the cards and :has() support in older Firefox would leave it
+   unreachable. */
+body.ntp-session-open .ntp-card {
+  inset-block-start: calc(100% - var(--ntp-card-overhang) - var(--ntp-card-peek));
 }
 
 .ntp-card-open {
@@ -857,16 +855,29 @@ body:has(.ntp-session-list:hover) .ntp-card ~ .ntp-card {
 
 /* Pinned to the viewport edge, drawn under the card stack, and driven by the
    session list itself rather than by the card settings. */
+/* The list is the smallest card of the tower: one step above the oldest one,
+   and a little narrower than it. Declared here, not on :root: var() resolves
+   where it is written, and --ntp-card-count is set on the stage below it. */
 .ntp-session-list {
-  position: fixed;
-  inset-inline: var(--ntp-card-gutter);
-  inset-block-end: 0;
-  /* In front of the cards: the stack pokes out from behind the tray edge and
-     the list stays clickable. */
-  z-index: 3;
+  --ntp-session-root-step: calc(var(--ntp-card-step) * var(--ntp-card-count, 1));
+  --ntp-session-scale: calc(
+    1 - var(--ntp-card-scale-step) * (var(--ntp-card-count, 1) + 1)
+  );
+
+  /* The base of the stack: lifted one step further than the oldest card, so
+     its header shows as the bottom-most layer of the tower, and reaching down
+     to the viewport edge (the stage already extends past it by the overhang). */
+  position: absolute;
+  inset-block-start: calc(var(--ntp-session-root-step) * -1);
+  inset-block-end: var(--ntp-card-overhang);
+  inset-inline: 0;
+  /* Narrower than every card above it, like the last card of the tower, while
+     still reaching the viewport edge (scaleX never moves the bottom edge). */
+  transform: scaleX(var(--ntp-session-scale));
+  transform-origin: 50% 0;
+  z-index: 1;
   display: flex;
   flex-direction: column;
-  block-size: var(--ntp-session-block-size);
   margin: 0;
   overflow: auto;
   /* Rounded on top, square underneath: it is the floor, not a card. */
