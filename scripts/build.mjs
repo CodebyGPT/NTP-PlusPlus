@@ -8,6 +8,7 @@ const DIST_DIR = fileURLToPath(new URL('../dist/', import.meta.url));
 const SHARED_FILES = [
   'background.js',
   'i18n.js',
+  'icons.js',
   'newtab.css',
   'newtab.html',
   'newtab.js',

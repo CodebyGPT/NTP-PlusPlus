@@ -24,13 +24,16 @@
   --ntp-tile-icon-radius: 50%;
   --ntp-tile-icon-bg: rgb(0 0 0 / 6%);
   --ntp-tile-icon-hover-scale: 1.3;
-  /* Letter badge: rounded square, not a circle, with a nearly full-size glyph
-     leaning into the lower right corner; whatever leaves the square is clipped
-     by the badge's own rounded corners. */
-  --ntp-tile-letter-radius: 26%;
-  --ntp-tile-letter-glyph-scale: 0.95;
-  --ntp-tile-letter-tilt: -10deg;
-  --ntp-tile-letter-nudge: -5%;
+  /* The one generated-icon engine (icons.js + .site-icon): a rounded square
+     badge with a nearly full-size glyph leaning into the lower right corner;
+     whatever leaves the square is clipped by the square's own rounded corners.
+     Each surface only sets --site-icon-size next to its own sizing token. */
+  --site-icon-size: 1rem;
+  --site-icon-image-size: 1rem;
+  --site-icon-letter-radius: 26%;
+  --site-icon-glyph-scale: 0.95;
+  --site-icon-tilt: -10deg;
+  --site-icon-letter-nudge: -5%;
   /* One favicon size for both styles. The Chromium backing is a little larger
      than the Firefox one so a 25.6px square keeps ~5px between its corners and
      the circle (a square inscribed in a circle reaches 70.7% of its width). */
@@ -225,12 +228,57 @@ body {
   outline-offset: 2px;
 }
 
-.ntp-tile-icon {
+/* --- the one generated-icon engine -------------------------------------
+   icons.js builds every site icon as .site-icon: the favicon image when one can
+   be had offline, with a generated letter badge underneath that shows through
+   only while the image is missing or has failed. Surfaces set --site-icon-size
+   and --site-icon-image-size; nothing else varies. */
+.site-icon {
   position: relative;
   display: grid;
+  flex: 0 0 auto;
   place-items: center;
-  inline-size: var(--ntp-tile-icon-size);
-  block-size: var(--ntp-tile-icon-size);
+  inline-size: var(--site-icon-size);
+  block-size: var(--site-icon-size);
+}
+
+.site-icon-image {
+  grid-area: 1 / 1;
+  inline-size: var(--site-icon-image-size);
+  block-size: var(--site-icon-image-size);
+  object-fit: contain;
+}
+
+.site-icon-letter {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: var(--site-icon-letter-radius);
+  line-height: 1;
+  /* Decoration, not copy: dragging over the page must not select it. */
+  user-select: none;
+}
+
+.site-icon-glyph {
+  position: absolute;
+  /* A plain percentage: calc() of a length times a percentage is invalid CSS,
+     which silently drops the offset and parks the glyph in the corner. */
+  inset-block-end: var(--site-icon-letter-nudge);
+  inset-inline-end: var(--site-icon-letter-nudge);
+  font-size: calc(var(--site-icon-size) * var(--site-icon-glyph-scale));
+  font-weight: 800;
+  transform: rotate(var(--site-icon-tilt));
+  transform-origin: 100% 100%;
+}
+
+/* Loaded: the real favicon wins and the badge disappears. */
+.site-icon.has-icon .site-icon-letter {
+  visibility: hidden;
+}
+
+.ntp-tile-icon {
+  --site-icon-size: var(--ntp-tile-icon-size);
+  --site-icon-image-size: var(--ntp-tile-favicon-size);
   border-radius: var(--ntp-tile-icon-radius);
   background-color: var(--ntp-tile-icon-bg);
   transition:
@@ -238,54 +286,13 @@ body {
     box-shadow var(--ntp-transition) ease;
 }
 
-.ntp-tile-favicon {
-  position: absolute;
-  inset: 0;
-  margin: auto;
-  inline-size: var(--ntp-tile-favicon-size);
-  block-size: var(--ntp-tile-favicon-size);
-  object-fit: contain;
-}
-
-.ntp-tile-icon.has-favicon .ntp-tile-letter {
-  visibility: hidden;
-}
-
-/* Auto-generated letter icon: a filled rounded square (no outline) with a bold
-   glyph leaning in the lower right. The glyph is oversized so the badge clips
-   it, which is what makes it read as a logo instead of a letter with padding.
-   Colours come from topsites.js: a Memphis fill plus black or white text
-   chosen by measured contrast. */
-.ntp-tile-letter {
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
-  border-radius: var(--ntp-tile-letter-radius);
-  line-height: 1;
-  /* The glyph is decoration, not copy: dragging over the grid must not select
-     it. */
-  user-select: none;
-}
-
-.ntp-tile-letter-glyph {
-  position: absolute;
-  /* A plain percentage: calc() of a length times a percentage is invalid CSS,
-     which silently drops the offset and parks the glyph in the corner. */
-  inset-block-end: var(--ntp-tile-letter-nudge);
-  inset-inline-end: var(--ntp-tile-letter-nudge);
-  font-size: calc(var(--ntp-tile-icon-size) * var(--ntp-tile-letter-glyph-scale));
-  font-weight: 800;
-  transform: rotate(var(--ntp-tile-letter-tilt));
-  transform-origin: 100% 100%;
-}
-
 /* Debug switch in the settings dialog: hide the real favicons so the letter
    fallback can be checked on a page where every site has an icon. */
-body.ntp-letter-favicons .ntp-tile-icon img {
+body.ntp-letter-favicons #ntp-tiles .site-icon-image {
   display: none;
 }
 
-body.ntp-letter-favicons .ntp-tile-icon .ntp-tile-letter {
+body.ntp-letter-favicons #ntp-tiles .site-icon-letter {
   visibility: visible;
 }
 
@@ -589,28 +596,13 @@ body.ntp-firefox-style .ntp-tile-link:focus-visible .ntp-tile-icon {
   background-color: var(--ntp-card-bar-bg);
 }
 
-.ntp-card-favicon {
-  flex: 0 0 auto;
-  inline-size: var(--ntp-card-favicon-size);
-  block-size: var(--ntp-card-favicon-size);
-}
-
-/* Stands in for the icon on pages that have none, like chrome://settings. */
-.ntp-card-bar-letter {
-  flex: 0 0 auto;
-  inline-size: var(--ntp-card-favicon-size);
-  block-size: var(--ntp-card-favicon-size);
-  border-radius: 50%;
-  background-color: var(--ntp-card-snapshot-bg);
-  color: var(--ntp-card-muted);
-  font-size: calc(var(--ntp-card-favicon-size) * 0.7);
-  font-weight: 600;
-  line-height: var(--ntp-card-favicon-size);
-  text-align: center;
-}
-
-.ntp-card-bar.has-favicon .ntp-card-bar-letter {
-  display: none;
+.ntp-card-icon {
+  --site-icon-size: var(--ntp-card-favicon-size);
+  --site-icon-image-size: var(--ntp-card-favicon-size);
+  /* At 16px a 0.95 glyph gets clipped into an unreadable sliver, so the small
+     surfaces trade some size for legibility. */
+  --site-icon-glyph-scale: 0.78;
+  --site-icon-letter-nudge: -2%;
 }
 
 /* The character limit is computed in JS; this ellipsis only catches the frame
@@ -709,20 +701,10 @@ body.ntp-firefox-style .ntp-tile-link:focus-visible .ntp-tile-icon {
   align-content: center;
 }
 
-.ntp-card-placeholder {
-  inline-size: var(--ntp-card-placeholder-size);
-  block-size: var(--ntp-card-placeholder-size);
-  object-fit: contain;
+.ntp-card-placeholder-icons {
+  --site-icon-size: var(--ntp-card-placeholder-size);
+  --site-icon-image-size: var(--ntp-card-placeholder-size);
   opacity: 0.55;
-}
-
-.ntp-card-placeholder-letter {
-  display: block;
-  font-size: var(--ntp-card-placeholder-size);
-  font-weight: 600;
-  line-height: 1;
-  color: var(--ntp-card-muted);
-  opacity: 0.5;
 }
 
 .ntp-card-snapshot img:not(.ntp-card-placeholder) {
@@ -762,23 +744,11 @@ body.ntp-firefox-style .ntp-tile-link:focus-visible .ntp-tile-icon {
 }
 
 .ntp-card-tab-icon {
-  flex: 0 0 auto;
-  inline-size: var(--ntp-card-tab-icon-size);
-  block-size: var(--ntp-card-tab-icon-size);
-  object-fit: contain;
-}
-
-/* Same box as the icon, so a row that fell back to a letter still lines up. */
-.ntp-card-tab-letter {
-  flex: 0 0 auto;
-  inline-size: var(--ntp-card-tab-icon-size);
-  block-size: var(--ntp-card-tab-icon-size);
-  font-size: 0.625rem;
-  font-weight: 600;
-  line-height: var(--ntp-card-tab-icon-size);
-  text-align: center;
-  color: var(--ntp-card-muted);
-  opacity: 0.75;
+  --site-icon-size: var(--ntp-card-tab-icon-size);
+  --site-icon-image-size: var(--ntp-card-tab-icon-size);
+  --site-icon-glyph-scale: 0.72;
+  --site-icon-letter-nudge: -2%;
+  opacity: 0.9;
 }
 
 .ntp-card-tab-label {

@@ -981,7 +981,7 @@ async function chromeScenario(page, errors) {
         const letters = [...document.querySelectorAll('#ntp-tiles .ntp-tile-letter')];
         return letters.map((letter) => {
           const box = letter.getBoundingClientRect();
-          const glyph = letter.querySelector('.ntp-tile-letter-glyph');
+          const glyph = letter.querySelector('.site-icon-glyph');
           const rect = glyph.getBoundingClientRect();
           const style = getComputedStyle(letter);
           const glyphStyle = getComputedStyle(glyph);
@@ -1900,15 +1900,19 @@ async function cardsScenario(page, errors) {
       const box = first.getBoundingClientRect();
       const letterRect = letter?.getBoundingClientRect();
       // Probe the icon cascade: the real favicon <img> only exists on
-      // Chromium, so a stand-in element proves the rule stays small.
-      const probe = document.createElement('img');
-      probe.className = 'ntp-card-placeholder';
-      probe.src = ${JSON.stringify(CARD_SNAPSHOT)};
+      // Chromium, so a stand-in proves the shared .site-icon rules keep the
+      // marker small instead of letting it fill the card.
+      const probe = document.createElement('span');
+      probe.className = 'site-icon ntp-card-placeholder-icons';
+      const probeImage = document.createElement('img');
+      probeImage.className = 'site-icon-image ntp-card-placeholder';
+      probeImage.src = ${JSON.stringify(CARD_SNAPSHOT)};
+      probe.append(probeImage);
       first.append(probe);
       await new Promise((resolve) => {
         requestAnimationFrame(() => requestAnimationFrame(resolve));
       });
-      const iconRect = probe.getBoundingClientRect();
+      const iconRect = probeImage.getBoundingClientRect();
       return {
         count: empty.length,
         letter: letter?.textContent ?? '',
@@ -2369,10 +2373,10 @@ async function cardsScenario(page, errors) {
       const labelBox = label.getBoundingClientRect();
       const padding = parseFloat(style.paddingInlineStart) + parseFloat(style.paddingInlineEnd);
       return {
-        icons: bar.querySelectorAll('.ntp-card-favicon, .ntp-card-bar-letter').length,
+        icons: bar.querySelectorAll('.site-icon').length,
         title: card.querySelector('.ntp-card-title').textContent,
         rows: rows.map((row) => row.querySelector('.ntp-card-tab-label').textContent),
-        rowIcons: rows.map((row) => row.querySelectorAll('.ntp-card-tab-icon, .ntp-card-tab-letter').length),
+        rowIcons: rows.map((row) => row.querySelectorAll('.site-icon').length),
         snapshots: card.querySelectorAll('.ntp-card-snapshot img').length,
         topGap: first.top - box.top - parseFloat(style.paddingBlockStart),
         bottomGap: box.bottom - last.bottom - parseFloat(style.paddingBlockEnd),

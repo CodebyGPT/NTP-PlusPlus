@@ -7,10 +7,10 @@ import {
   limitLabel,
   TITLE_SEPARATOR,
 } from './stack.js';
+import { createSiteIcon } from './icons.js';
 import {
   hostOf,
   isWebUrl,
-  letterColors,
   normalizeHost,
   prepareTiles,
   TILE_COUNT,
@@ -24,8 +24,6 @@ const extensionApi = globalThis.browser ?? globalThis.chrome;
 // Firefox also supports topSites options and bookmarks, Chromium caps at 10.
 const IS_FIREFOX = /Firefox\//.test(navigator.userAgent);
 
-const FAVICON_SIZE = 64;
-const FAVICON_ENDPOINT = '/_favicon/';
 const HIDDEN_SITES_KEY = 'ntp-hidden-sites';
 const DOMAIN_ONLY_KEY = 'ntp-domain-only';
 const EXCLUDE_BOOKMARKS_KEY = 'ntp-exclude-bookmarks';
@@ -298,34 +296,6 @@ function saveStoredCount(key, value) {
   }
 }
 
-function faviconSource(tile) {
-  if (tile.favicon) {
-    return tile.favicon;
-  }
-
-  if (IS_FIREFOX) {
-    return undefined;
-  }
-
-  // The favicon store only knows web pages: ask it about chrome://settings and
-  // it answers with its generic globe, which would be a lie. The letter stands
-  // in instead.
-  if (tile.sourceUrl && !isWebUrl(tile.sourceUrl)) {
-    return undefined;
-  }
-
-  // Chromium needs the "favicon" permission for this internal endpoint.
-  const endpoint = extensionApi.runtime.getURL(FAVICON_ENDPOINT);
-  return `${endpoint}?pageUrl=${encodeURIComponent(tile.sourceUrl)}&size=${FAVICON_SIZE}`;
-}
-
-// A first letter for anything without an icon: the site's host, or the text
-// itself when the URL has no host to speak of.
-function initialOf(url) {
-  const host = hostOf(url) || url;
-  return host.slice(0, 1).toUpperCase() || '?';
-}
-
 function createTileElement(tile) {
   const item = document.createElement('li');
   item.className = 'ntp-tile';
@@ -335,37 +305,12 @@ function createTileElement(tile) {
   link.href = tile.url;
   link.title = tile.title;
 
-  const icon = document.createElement('span');
-  icon.className = 'ntp-tile-icon';
-
-  const source = faviconSource(tile);
-  if (source) {
-    const image = document.createElement('img');
-    image.className = 'ntp-tile-favicon';
-    image.alt = '';
-    image.width = FAVICON_SIZE;
-    image.height = FAVICON_SIZE;
-    image.addEventListener('load', () => icon.classList.add('has-favicon'));
-    image.addEventListener('error', () => image.remove());
-    image.src = source;
-    icon.append(image);
-  }
-
-  // The generated letter is a filled badge with the glyph as its own node, so
-  // the glyph can lean and overspill without dragging the badge with it.
-  const letter = document.createElement('span');
-  letter.className = 'ntp-tile-letter';
-  letter.dataset.tileLetter = '';
-  const colors = letterColors(tile.key);
-  letter.style.backgroundColor = colors.background;
-  letter.style.color = colors.text;
-
-  const glyph = document.createElement('span');
-  glyph.className = 'ntp-tile-letter-glyph';
-  glyph.setAttribute('aria-hidden', 'true');
-  glyph.textContent = tile.title.trim().charAt(0).toUpperCase() || '?';
-  letter.append(glyph);
-  icon.append(letter);
+  const icon = createSiteIcon({
+    url: tile.sourceUrl ?? tile.url,
+    title: tile.title,
+    favicon: tile.favicon,
+    variant: 'tile',
+  });
 
   const title = document.createElement('span');
   title.className = 'ntp-tile-title';
@@ -573,29 +518,6 @@ function setupSettings() {
   }
 }
 
-// The copy glyph lives in a <template> in the HTML: inline SVG markup parses
-// into the SVG namespace there, so no xmlns string is needed in JS.
-function createPlaceholderIcon(source, url) {
-  const icon = document.createElement('img');
-  icon.className = 'ntp-card-placeholder';
-  icon.alt = '';
-  icon.width = FAVICON_SIZE;
-  icon.height = FAVICON_SIZE;
-  icon.addEventListener('error', () => icon.replaceWith(createPlaceholderLetter(url)));
-  icon.src = source;
-  return icon;
-}
-
-// Firefox sessions carry no inline favicon, and loading the remote favIconUrl
-// would break the no-remote-resources rule, so the site's initial stands in.
-function createPlaceholderLetter(url) {
-  const letter = document.createElement('span');
-  letter.className = 'ntp-card-placeholder-letter';
-  letter.setAttribute('aria-hidden', 'true');
-  letter.textContent = initialOf(url);
-  return letter;
-}
-
 function createCardElement(card, stackIndex) {
   const isWindow = card.kind === 'window';
   const item = document.createElement('article');
@@ -617,25 +539,10 @@ function createCardElement(card, stackIndex) {
   bar.className = 'ntp-card-bar';
 
   // A window has no icon of its own, so its bar starts straight at the title.
-  const source = isWindow ? undefined : faviconSource({ sourceUrl: card.url });
-  if (source) {
-    const image = document.createElement('img');
-    image.className = 'ntp-card-favicon';
-    image.alt = '';
-    image.width = FAVICON_SIZE;
-    image.height = FAVICON_SIZE;
-    image.addEventListener('load', () => bar.classList.add('has-favicon'));
-    image.addEventListener('error', () => image.remove());
-    image.src = source;
-    bar.append(image);
-  }
-
   if (!isWindow) {
-    const letter = document.createElement('span');
-    letter.className = 'ntp-card-bar-letter';
-    letter.setAttribute('aria-hidden', 'true');
-    letter.textContent = initialOf(card.url);
-    bar.append(letter);
+    bar.append(
+      createSiteIcon({ url: card.url, title: card.title, variant: 'card' }),
+    );
   }
 
   const label = document.createElement('span');
@@ -667,9 +574,11 @@ function createCardElement(card, stackIndex) {
     } else {
       body.classList.add('is-empty');
       body.append(
-        source
-          ? createPlaceholderIcon(source, card.url)
-          : createPlaceholderLetter(card.url),
+        createSiteIcon({
+          url: card.url,
+          title: card.title,
+          variant: 'placeholder',
+        }),
       );
     }
   }
@@ -790,38 +699,17 @@ function fillWindowCard(cardElement, card, charWidth) {
   const truncated = card.tabs.length > rows;
   const shown = truncated ? card.tabs.slice(0, rows - 1) : card.tabs;
 
-  const rowElements = shown.map((tab) => {
-    const icon = createTabIcon(tab.url) ?? createTabLetter(tab.url);
-    return createTabRow(limitLabel(tabLine(tab), limitFor(true)), icon);
-  });
+  const rowElements = shown.map((tab) =>
+    createTabRow(
+      limitLabel(tabLine(tab), limitFor(true)),
+      createSiteIcon({ url: tab.url, title: tab.title, variant: 'tab' }),
+    ),
+  );
   if (truncated) {
     rowElements.push(createTabRow(ELLIPSIS));
   }
 
   list.replaceChildren(...rowElements);
-}
-
-function createTabIcon(url) {
-  const source = faviconSource({ sourceUrl: url });
-  if (!source) {
-    return undefined;
-  }
-
-  const icon = document.createElement('img');
-  icon.className = 'ntp-card-tab-icon';
-  icon.alt = '';
-  icon.addEventListener('error', () => icon.replaceWith(createTabLetter(url)));
-  icon.src = source;
-  return icon;
-}
-
-// Same fallback as the title bar: no icon source means the site's initial.
-function createTabLetter(url) {
-  const letter = document.createElement('span');
-  letter.className = 'ntp-card-tab-letter';
-  letter.setAttribute('aria-hidden', 'true');
-  letter.textContent = initialOf(url);
-  return letter;
 }
 
 function createTabRow(text, icon) {

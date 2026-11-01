@@ -120,6 +120,7 @@ src/
   manifest.json          公共 manifest 字段
   background.js          后台脚本：截图、720p 压缩、最近关闭快照槽位
   i18n.js                t()、data-i18n 与 data-i18n-aria
+  icons.js               唯一的图标来源：favicon 取值策略 + 首字母徽章降级
   newtab.html            瓦片网格、最近关闭卡片、设置按钮与设置弹窗
   newtab.css             纯色背景、瓦片、卡片、设置弹窗、深浅色回退、视口自适应
   newtab.js              主题同步 + 瓦片渲染 + 卡片渲染 + 设置 + 页面内关闭逻辑
@@ -129,6 +130,7 @@ scripts/
   build.mjs              生成 dist/chrome 与 dist/firefox
 test/
   i18n.test.mjs          i18n 辅助函数检查
+  icons.test.mjs         图标来源策略检查（Chromium / Firefox / 特权页面）
   stack.test.mjs         最近关闭卡片纯函数检查
   topsites.test.mjs      常用网站纯函数检查
   headless/              无 npm 依赖的 CDP 无头浏览器检查（不入库截图产物）
@@ -161,13 +163,36 @@ test/
 - 纯函数 `src/topsites.js` 只处理列表：过滤非 http/https、跳过排除主机、跳过已隐藏 origin、按目标 URL 去重、截断到 10 条，便于 Node 直接测试。
 - 隐藏记录以 origin 为 key（`ntp-hidden-sites`），切换“只保留域名”不会让已删站点复活；删除后从溢出池补位。
 - Chromium 图标走 `runtime.getURL('/_favicon/')` + `pageUrl` + `size=64`（需要 `favicon` 权限）；Firefox 用 `topSites` 返回的 data URL。加载失败就移除 `img`，露出首字母。
-- 首字母瓦片图标：`.ntp-tile-letter` 是填满图标位的**圆角矩形徽章**（`--ntp-tile-letter-radius: 26%`，无描边，`overflow: hidden`），字母是它的子节点 `.ntp-tile-letter-glyph`，加粗、`rotate(-10deg)`、锚在右下（`--ntp-tile-letter-nudge: -5%`），字号 `--ntp-tile-letter-glyph-scale: 0.95` 大到会被徽章自己的圆角切掉——刻意用裁剪代替留白，字才像标志而不是“一个带内边距的字母”。`transform-origin: 100% 100%` 让倾斜绕着右下角转，溢出量才可预测。徽章上标了 `user-select: none`：它是装饰，不是可复制文本，拖动选中瓦片时不该被框进去。配色在 `topsites.js`：`LETTER_COLORS` 是 16 色孟菲斯（Memphis）色板——八十年代那种高饱和撞色，配几个近黑让白字也有用武之地；`letterColors(key)` 用站点 key 做哈希取色（不是 `Math.random()`，否则每次重渲染都换色），文字色由 `letterTextColor()` 按 WCAG 相对亮度在黑/白里挑对比度更大的那个。`inset-block-end`/`inset-inline-end` 必须写纯百分比——`calc(长度 * 百分比)` 是非法 CSS，会被静默丢弃，字母就缩回左上角。
 - 左键当前标签页打开、右键原生菜单：瓦片就是普通 `<a href>`，不监听 `contextmenu`。
 - favicon 尺寸固定 `--ntp-tile-favicon-size: 1.6rem`（25.6px），两套风格共用。Chromium 的圆形底 `--ntp-tile-icon-size: 2.875rem`（46px）比 Firefox 方底的 2.5rem 大一圈，这样方角到圆边有约 5px 余量：正方形内切时角在 70.7% 处，46/2 - 25.6×0.707 ≈ 4.9px。
 - 两套风格共用同一套 DOM，只在 CSS 里分叉：`body.ntp-firefox-style` 改图标底圆角（`--ntp-firefox-tile-icon-radius: 8px`）、去掉瓦片底色、悬停时 `scale()` 图标并加 `--ntp-firefox-tile-icon-shadow` 阴影（默认无阴影，dark 下提高不透明度）、标题 `--ntp-tile-title-clamp: 2`；默认（无该类）是 Chromium 风格（圆形图标底 `--ntp-tile-icon-radius: 50%`、悬停出 `3px` 瓦片底、标题单行）。标题统一用 `-webkit-line-clamp` + `text-overflow: ellipsis`，只切 clamp 数字就切换行数。删除按钮固定在图标右上角，靠 CSS `:hover`/`:focus-within` 淡入淡出，不写 JS 悬停逻辑。
 - 风格偏好存 `ntp-tile-style`，默认值取 `IS_FIREFOX`：识别不到浏览器时回落 Chromium 风格；改设置只切 body class，无需重渲染。
 - 布局用 Flexbox `flex-wrap` + 固定瓦片宽度（`--ntp-tile-width`，上限 7rem，对齐 Chromium 的 112px 瓦片）+ `justify-content: center`，容器宽度上限压到 5 列：窄窗口自动减列、不产生横向滚动，不足 10 个瓦片时最后一行仍然居中。
 - 瓦片链接不设左右内边距，标题按满瓦片宽度省略，能被截断的字符更多；相邻标题之间靠 flex `gap` 保持间隔，不会重叠或越出安全区。
+
+### 图标
+
+所有图标只走一条路：`src/icons.js`。调用方只管说“这个站点是什么”，不判断要不要降级：
+
+```js
+createSiteIcon({ url, title, favicon, variant: 'tile' })
+```
+
+返回一个 `span.site-icon`：里面要么是加载成功的 `img.site-icon-image`，要么是同样大小的首字母徽章。降级策略全在 `iconSource()` 里——内联 `favicon`（`topSites` 给的 data URL）优先；Firefox 直接 `undefined`，因为 `sessions`/`tabs` 只给远程 `favIconUrl`，加载它等于联网；非 http(s) 的 URL 也 `undefined`，因为 Chromium 的 `/_favicon/` 对特权页面只会吐出同一张通用地球图标。其余情况才拼 `/_favicon/?pageUrl=…&size=64`。
+
+`variant`（`tile` / `card` / `tab` / `placeholder`）只是选一套类名，几何和配色全由 CSS 变量决定：
+
+- `.site-icon` 是方框，尺寸 `--site-icon-size`，图片尺寸 `--site-icon-image-size`。
+- 徽章 `.site-icon-letter` 是圆角矩形（`--site-icon-letter-radius`，无描边，`overflow: hidden`），字母 `.site-icon-glyph` 加粗、`rotate(--site-icon-tilt)`、锚在右下（`--site-icon-letter-nudge`）、字号 `--site-icon-glyph-scale` × `--site-icon-size`——刻意大到被徽章自己的圆角切掉，用裁剪代替留白，字才像标志而不是“一个带内边距的字母”。`transform-origin: 100% 100%` 让倾斜绕着右下角转，切掉的量才可预测。
+- `img` 加载成功时给 `.site-icon` 加 `has-icon`，CSS 藏起徽章；加载失败就移除 `img`，徽章自动露出。所以图标可以“先乐观地请求，再自然降级”，调用方不需要 try/catch。
+- 各处只覆盖变量：瓦片 `0.95`、卡片标题栏 `0.78`、窗口行 `0.72`（小尺寸再切就只剩一条边，得为可读性让步）、快照占位 `0.95` + `opacity: 0.55`。
+- 徽章标了 `user-select: none`：它是装饰，不是可复制文本，拖动选中瓦片时不该被框进去。
+
+配色在 `topsites.js`：`LETTER_COLORS` 是 16 色**孟菲斯（Memphis）**色板——八十年代那种高饱和撞色，深浅混着放，白字才有用武之地；`letterColors(key)` 用站点 key 哈希取色（不是 `Math.random()`，否则每次重渲染都换色），字色由 `letterTextColor()` 按 WCAG 相对亮度在黑/白里挑对比度更大的那个。`inset-block-end`/`inset-inline-end` 必须写纯百分比——`calc(长度 * 百分比)` 是非法 CSS，会被静默丢弃，字母就缩回左上角。
+
+“调试：只用单字母图标”就是靠这套结构实现的：给 `body` 加 `ntp-letter-favicons`，CSS 藏掉 `.site-icon-image`、强制露出徽章。
+
+以后加新地方放图标，只要 `createSiteIcon()` + 一个 `variant`，不要另起一套 favicon 逻辑。
 
 ### 最近关闭的标签页卡片
 
@@ -180,8 +205,8 @@ test/
 - 恢复：整张卡片（标题栏 + 快照）是一个 `<a>`，`click` 时 `preventDefault()` 再 `sessions.restore(sessionId)`；恢复失败（会话已被清理）就退回到 `location.href = url`，仍然能打开这个页面。
 - 复制链接按钮是那个 `<a>` 的**兄弟节点**（绝对定位到标题栏右侧），不能嵌在 `<a>` 里——`<a>` 内嵌 `<button>` 是非法结构。图标直接取 `Doc/IconPark-master` 里的 `Edit/copy.svg`（Apache-2.0），去掉 `xmlns` 放进 `newtab.html` 的 `<template id="ntp-card-copy-icon">`：HTML 解析器会自动把它放进 SVG 命名空间，于是 JS 里不需要 `createElementNS` 和 `http://www.w3.org/2000/svg` 这个会被构建规则拦掉的字符串，克隆模板即可。`fill: none` + `stroke: currentcolor` 让它跟随按钮颜色。按下时除了变深还有 `:active` 的 `scale(--ntp-card-copy-active-scale)`，并且把 `transition-duration` 压到 `0ms`，保证按下是即时的、松开才走过渡。指针点击后要 `blur()`（`event.detail > 0` 时）——否则按钮一直持焦点，`.ntp-card:focus-within ~ .ntp-card` 会让卡片组一直保持展开，鼠标移开也不收起；键盘用户保留焦点才能继续 Tab。
 - 卡片内容来源：`sessions.getRecentlyClosed()` 里 tab 型条目都算数，**包括 `chrome://`、`about:`、`file://` 这类特权页面**——浏览器本来就能恢复它们，卡片只是不能截图而已。唯一被丢掉的是浏览器自己的空页面（`about:blank`/`about:newtab`/`chrome://newtab` 等，见 `stack.js` 的 `SKIPPED_URLS`），因为“新标签页”这张卡片没有任何信息，还会把真实卡片挤出去；`data:`/`blob:`/`javascript:` 也无法恢复，一并跳过。
-- 特权页面的图标：`/_favicon/` 只认网页，问它 `chrome://settings/` 会返回通用的地球图标（实测对任何 URL 都返回同一张 64×64），所以标题栏和快照区都退到**站点首字母**（`initialOf()`，取 `hostOf()` 首字母，取不到就用 URL 首字符）。标题栏的做法和瓦片一致：首字母 `<span>` 始终在，`img` 加载成功才给标题栏加 `has-favicon` 并隐藏首字母，加载失败就移除 `img` 留下首字母。
-- 没有快照时（标签页还没机会被截到）快照区居中显示站点 favicon，尺寸 `--ntp-card-placeholder-size`（2.5rem）比标题栏里的大一圈，但远小于卡片：占位图**不能**铺满快照区，`object-fit: contain` 保持图标比例，`opacity: 0.55` 让它退到背景。注意快照图片的 `inline-size: 100%` 规则必须写成 `.ntp-card-snapshot img:not(.ntp-card-placeholder)`，否则同属性选择器的特异度会压过占位图尺寸，把它拉满整张卡片。Chromium 走 `/_favicon/`；Firefox 的 `sessions` 不带内联图标，而 `favIconUrl` 是远程地址（违反“不加载远程图片”），所以退化成站点首字母；占位图加载失败也换成首字母（`createPlaceholderIcon()` 的 error 回调里 `replaceWith`）。
+- 特权页面的图标：`/_favicon/` 只认网页，问它 `chrome://settings/` 会返回通用的地球图标（实测对任何 URL 都返回同一张 64×64），所以标题栏和快照区都退到**站点首字母徽章**（`icons.js` 里的 `siteInitial()`，取 `hostOf()` 首字母，取不到就用 URL 首字符）。和瓦片走完全相同的路径：徽章始终在，`img` 加载成功才给 `.site-icon` 加 `has-icon` 隐藏徽章，加载失败就移除 `img` 露出徽章。
+- 没有快照时（标签页还没机会被截到）快照区居中显示站点图标，尺寸 `--ntp-card-placeholder-size`（2.5rem）比标题栏里的大一圈，但远小于卡片：占位图标**不能**铺满快照区，它同样是 `.site-icon`（`variant: 'placeholder'`），尺寸由 `--site-icon-size` 决定，`opacity: 0.55` 让它退到背景。注意快照图片的 `inline-size: 100%` 规则必须写成 `.ntp-card-snapshot img:not(.ntp-card-placeholder)`，否则同属性选择器的特异度会压过图标尺寸，把它拉满整张卡片。
 - 字符数上限：`ResizeObserver`（事件驱动，只在宽度真的变化时触发）监听 `#ntp-recent` 宽度 → 一次布局读 `label.clientWidth`（已扣掉复制按钮让出的位置）→ 隐藏的 `.ntp-card-measure` 量平均字符宽 → `charLimitForWidth()` 得到单侧上限 → 标题和地址各自 `limitLabel()`。CSS 的 `text-overflow: ellipsis` 只是兜底，覆盖“resize 到下一次测量之间”的那一帧。上限不硬编码，宽窄窗口各自算出合适的值。
 - 快照褪色：快照区按卡片深度降饱和，暗示“已关掉”。上限 `--ntp-card-saturation-max: 0.6`、下限 `--ntp-card-saturation-min: 0.1`，中间值由 CSS 按深度插值（`saturate(calc(max - (max - min) * index / max(1, count - 1)))`），所以 3 张时是 60% / 35% / 10%，1 张时只有深度 0、落在上限 60%。中间档不写死：加减一张卡片，插值自己就变了。`max(1, …)` 防止单张卡片除零让整个 `calc()` 失效（失效就完全没有滤镜）。
 - 快照：`background.js` 在标签页变为可见（`tabs.onActivated`、`tabs.onUpdated` 到 `complete`、`windows.onFocusChanged`）时调用 `tabs.captureVisibleTab`，只截当前可见页——已关闭的标签页事后无法补截，所以必须预热。>720p 才用 `createImageBitmap` + `OffscreenCanvas` 缩到 1280×720，任何失败都静默回退原图。
@@ -192,7 +217,7 @@ test/
 - 整个窗口的卡片：`sessions.getRecentlyClosed()` 还会返回 window 型条目（关掉的是整个窗口），这种条目变成一张 `kind: 'window'` 的卡片。标题栏**不显示图标**，标题是“包含<当前标签页的标题 - 链接>等 N 个标签页”，N 是窗口里剩下的标签页数（受过滤影响），当前标签页取 `tabs.find((tab) => tab.active) ?? tabs[0]`。卡片正文不是快照，而是标签页列表，每行“标题 - 链接”，横竖都在卡片里居中（`justify-content: center`，行数少时上下留白对称）。
 - 窗口卡片的字数与行数上限都是量出来的，不硬编码：`fillWindowCard()` 读 `getComputedStyle(list)` 的 `paddingInline`/`paddingBlock`（内边距本身就是“与卡片边缘保持距离”），字数上限 = `charLimitForWidth(可用宽度, 平均字符宽)`，行数上限 = `floor(可用高度 / 行高)`；行高由 `measureRowHeight()` 用绝对定位的探针量，避免插入可见节点抖一帧。装不下的行直接不生成，最后一行换成 `…`（省略号按正常行参与排版，所以列表依然居中）——和“卡片组只渲染选中的张数”同一个思路：不留隐藏 DOM。
 - 窗口卡片的复制按钮复制**所有**标签页，每行 `[标题](链接)`（markdown 链接，粘到任何编辑器、聊天框或 issue 里都能还原成可点链接）、`\n` 分隔、不插空行（`tabsText()`）；单标签页卡片仍然只复制那一个 URL。
-- 窗口卡片的每一行前面带该标签页的图标，复用标题栏那套 `faviconSource()`：Chromium 走 `/_favicon/`，拿不到（比如 Firefox 只有远程 `favIconUrl`，加载它等于联网）就退到站点首字母 `createTabLetter()`，和标题栏一致。图标宽度与间距从 `--ntp-card-tab-icon-size` / `--ntp-card-tab-gap` 读回，字符上限相应减去这段宽度（首字母盒子与图标同宽，所以两种行折得一样）。行内容用 flex 居中（图标 + 文本一起居中），只有文本允许折叠，所以短行真的落在卡片中间，而不是左对齐。
+- 窗口卡片的每一行前面带该标签页的图标，来自同一个 `createSiteIcon()`（见下面的“图标”一节），行里是 `.site-icon` 加一个可折叠的文本。图标宽度与间距从 `--ntp-card-tab-icon-size` / `--ntp-card-tab-gap` 读回，字符上限相应减去这段宽度（图标与首字母徽章同宽，所以两种行折得一样）。行内容用 flex 居中（图标 + 文本一起居中），只有文本允许折叠，所以短行真的落在卡片中间，而不是左对齐。
 - 窗口卡片由 `stack.js` 的 `windowCard()` 产出：过滤规则与标签页卡片一致（`webOnly` 时只留 http/https，否则用 `isCardUrl`），过滤后一个标签页都不剩就返回 `undefined`，整张卡片不渲染。窗口卡片与标签页卡片平等占用同一个 `maxCards` 名额。
 - 带替换的文案（如 `windowCardTitle`）必须在 `messages.json` 里写 `placeholders`（`{"head": {"content": "$1"}}`），正文写 `$head$`；只写 `$1$` 会让 Chrome **拒绝加载整个扩展**，报 “Variable $1$ used but not defined”。`getMessage(key, [a, b])` 按顺序填 `$1`、`$2`。
 
@@ -256,3 +281,4 @@ npm run build
 - [ ] 窄窗口下瓦片加卡片仍无滚动条、卡片区不被压扁成 0 高
 - [ ] `npm test` 与 `npm run build` 通过；`test/headless/run.mjs` 全绿，实际渲染与预期一致
 - [ ] 重大修改是逐项验证过的，不是在未验证的改动上继续叠加
+- [ ] 瓦片、卡片标题栏、窗口卡片每一行、快照占位这四处的图标是同一套徽章外观（只有尺寸不同），没有哪一处还是老样式
