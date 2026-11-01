@@ -59,7 +59,7 @@
     "description": "被关闭的窗口会作为一张卡片列出它包含的标签页。"
   },
   "windowCardTitle": {
-    "message": "包含“$head$”等 $count$ 个标签页",
+    "message": "包含“$head$”等 $count$ 个标签页的窗口",
     "placeholders": {
       "head": {
         "content": "$1"

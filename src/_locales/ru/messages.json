@@ -59,7 +59,7 @@
     "description": "Закрытое окно показывается одной карточкой со списком вкладок."
   },
   "windowCardTitle": {
-    "message": "Содержит «$head$», всего вкладок: $count$",
+    "message": "Окно, содержащее «$head$», всего вкладок: $count$",
     "placeholders": {
       "head": {
         "content": "$1"

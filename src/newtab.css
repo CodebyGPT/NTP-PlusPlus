@@ -618,6 +618,12 @@ body.ntp-firefox-style .ntp-tile-link:focus-visible .ntp-tile-icon {
   text-overflow: ellipsis;
 }
 
+/* A window card is one sentence rather than "title - url", so it is set in
+   bold to stand apart from tab cards; only the quoted tab line stays regular. */
+.ntp-card-window-words {
+  font-weight: 700;
+}
+
 .ntp-card-url {
   color: var(--ntp-card-muted);
 }

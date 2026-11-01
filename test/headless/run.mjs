@@ -2412,6 +2412,9 @@ async function cardsScenario(page, errors) {
       return {
         icons: bar.querySelectorAll('.site-icon').length,
         title: card.querySelector('.ntp-card-title').textContent,
+        titleWeights: [...card.querySelector('.ntp-card-title').children].map((part) =>
+          getComputedStyle(part).fontWeight,
+        ),
         rows: rows.map((row) => row.querySelector('.ntp-card-tab-label').textContent),
         rowIcons: rows.map((row) => row.querySelectorAll('.site-icon').length),
         snapshots: card.querySelectorAll('.ntp-card-snapshot img').length,
@@ -2425,7 +2428,21 @@ async function cardsScenario(page, errors) {
 
     assert(info.icons === 0, `${info.icons} icons in a window title bar`);
     assert(info.snapshots === 0, 'a window card should have no snapshot');
-    assert(info.title.startsWith('Contains'), `title is "${info.title}"`);
+    assert(
+      info.title.startsWith('A window containing'),
+      `title is "${info.title}"`,
+    );
+    assert(
+      info.title.endsWith('tabs in total'),
+      `title does not read as a sentence: "${info.title}"`,
+    );
+    assert(
+      info.titleWeights.length === 3 &&
+        info.titleWeights[0] === '700' &&
+        info.titleWeights[2] === '700' &&
+        info.titleWeights[1] !== '700',
+      `bold parts are ${info.titleWeights.join('/')}`,
+    );
     assert(
       info.title.includes('Front page') &&
         info.title.includes(String(WINDOW_TAB_COUNT)),

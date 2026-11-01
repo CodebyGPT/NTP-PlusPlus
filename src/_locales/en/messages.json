@@ -59,7 +59,7 @@
     "description": "Closed windows appear as one card listing their tabs."
   },
   "windowCardTitle": {
-    "message": "Contains “$head$” and $count$ tabs in total",
+    "message": "A window containing \"$head$\" and $count$ tabs in total",
     "placeholders": {
       "head": {
         "content": "$1"

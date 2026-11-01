@@ -672,6 +672,41 @@ function windowLabel(card) {
   return t('windowCardTitle', [tabLine(card.head), String(card.count)]);
 }
 
+// The sentence wraps a variable-length tab line inside fixed words, so the tab
+// line is folded on its own budget and the rendered sentence is then split
+// around it: the fixed words get bold, the quoted tab line stays regular, and
+// the quotes stay with the words they belong to.
+function fillWindowTitle(title, card, limit) {
+  const head = tabLine(card.head);
+  const count = String(card.count);
+  // Same count string the sentence will use, so the reserve is exact.
+  const reserve = t('windowCardTitle', ['', count]).length;
+  const headText = limitLabel(head, Math.max(1, limit - reserve));
+  const sentence = t('windowCardTitle', [headText, count]);
+  const at = sentence.indexOf(headText);
+
+  title.replaceChildren();
+
+  if (at < 0) {
+    title.textContent = limitLabel(sentence, limit);
+    return;
+  }
+
+  const words = document.createElement('span');
+  words.className = 'ntp-card-window-words';
+  words.textContent = sentence.slice(0, at);
+
+  const quote = document.createElement('span');
+  quote.className = 'ntp-card-window-quote';
+  quote.textContent = headText;
+
+  const rest = document.createElement('span');
+  rest.className = 'ntp-card-window-words';
+  rest.textContent = sentence.slice(at + headText.length);
+
+  title.append(words, quote, rest);
+}
+
 function measureCharWidth() {
   const sample = document.createElement('span');
   sample.className = 'ntp-card-measure';
@@ -774,10 +809,10 @@ function applyCardText() {
     const label = cardElement.querySelector('.ntp-card-label');
     if (card.kind === 'window') {
       // One sentence, so it gets the whole bar rather than half of it.
-      const limit = charLimitForWidth(label.clientWidth, charWidth);
-      label.querySelector('.ntp-card-title').textContent = limitLabel(
-        windowLabel(card),
-        limit,
+      fillWindowTitle(
+        label.querySelector('.ntp-card-title'),
+        card,
+        charLimitForWidth(label.clientWidth, charWidth),
       );
       fillWindowCard(cardElement, card, charWidth);
       return;
