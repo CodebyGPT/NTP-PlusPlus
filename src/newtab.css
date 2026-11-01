@@ -533,7 +533,12 @@ body.ntp-firefox-style .ntp-tile-link:focus-visible .ntp-tile-icon {
   margin-inline: auto;
   /* One step more than the stack lifts, so the base card always shows a strip
      of its own without running into the tiles. */
-  margin-block-start: calc(var(--ntp-card-count, 1) * var(--ntp-card-step));
+  /* Every layer of the tower lifts one step more than the one in front of it,
+     so the reserve is one step short of the layer count -- and the bottom-most
+     card (the session list) lands exactly on the top edge of the reserve. */
+  margin-block-start: calc(
+    (var(--ntp-stack-count, 1) - 1) * var(--ntp-card-step)
+  );
   /* Pull the stage past the bottom edge so the newest card is cut off by the
      viewport instead of ending early. The negative margin keeps the page
      itself exactly one viewport tall. */
@@ -584,7 +589,7 @@ body.ntp-firefox-style .ntp-tile-link:focus-visible .ntp-tile-icon {
    is toggled by pointer/focus events rather than with :has(), because the base
    is behind the cards and :has() support in older Firefox would leave it
    unreachable. */
-body.ntp-session-open .ntp-card {
+body.ntp-session-open .ntp-card:not(.ntp-session-list) {
   inset-block-start: calc(100% - var(--ntp-card-overhang) - var(--ntp-card-peek));
 }
 
@@ -853,43 +858,16 @@ body.ntp-session-open .ntp-card {
 
 /* --- pinned session tray ------------------------------------------------ */
 
-/* Pinned to the viewport edge, drawn under the card stack, and driven by the
-   session list itself rather than by the card settings. */
-/* The list is the smallest card of the tower: one step above the oldest one,
-   and a little narrower than it. Declared here, not on :root: var() resolves
-   where it is written, and --ntp-card-count is set on the stage below it. */
+/* The list is one more card of the stack -- it carries .ntp-card for the
+   frame, the taper and the transform, and gets --ntp-card-index one past the
+   oldest card. Only the inside is different: a header row and scrollable
+   session rows instead of a snapshot. */
 .ntp-session-list {
-  --ntp-session-root-step: calc(var(--ntp-card-step) * var(--ntp-card-count, 1));
-  --ntp-session-scale: calc(
-    1 - var(--ntp-card-scale-step) * (var(--ntp-card-count, 1) + 1)
-  );
-
-  /* The base of the stack: lifted one step further than the oldest card, so
-     its header shows as the bottom-most layer of the tower, and reaching down
-     to the viewport edge (the stage already extends past it by the overhang). */
-  position: absolute;
-  inset-block-start: calc(var(--ntp-session-root-step) * -1);
-  inset-block-end: var(--ntp-card-overhang);
-  inset-inline: 0;
-  /* Narrower than every card above it, like the last card of the tower, while
-     still reaching the viewport edge (scaleX never moves the bottom edge). */
-  transform: scaleX(var(--ntp-session-scale));
-  transform-origin: 50% 0;
-  z-index: 1;
   display: flex;
   flex-direction: column;
-  margin: 0;
   overflow: auto;
-  /* Rounded on top, square underneath: it is the floor, not a card. */
-  border-radius: var(--ntp-card-radius) var(--ntp-card-radius) 0 0;
-  background-color: var(--ntp-card-bg);
-  box-shadow: var(--ntp-card-shadow);
-  color: var(--ntp-card-fg);
   font-size: var(--ntp-card-bar-font-size);
-}
-
-.ntp-session-list:empty {
-  display: none;
+  overscroll-behavior: contain;
 }
 
 .ntp-session-header,

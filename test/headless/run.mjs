@@ -1736,7 +1736,7 @@ async function setViewport(page, width, height) {
 // Geometry of the newest card against the stage that holds it, read once so
 // both the short-window and the landscape checks measure the same things.
 const cardGeometry = `(() => {
-  const card = document.querySelectorAll('.ntp-card')[2];
+  const card = document.querySelectorAll('.ntp-card:not(.ntp-session-list)')[2];
   const rect = card.getBoundingClientRect();
   const stage = document.getElementById('ntp-recent');
   const box = stage.getBoundingClientRect();
@@ -1795,7 +1795,7 @@ async function cardsScenario(page, errors) {
   // the headless window's default 758x391 leaves them only a few dozen px tall.
   await setViewport(page, CARD_VIEWPORT_WIDTH, CARD_VIEWPORT_HEIGHT);
   await loadPage(page, { preload: 'cards', clearStorage: true });
-  await page.waitFor(`document.querySelectorAll('.ntp-card').length === 3`, {
+  await page.waitFor(`document.querySelectorAll('.ntp-card:not(.ntp-session-list)').length === 3`, {
     timeout: 10000,
     label: '3 recent cards',
   });
@@ -1816,7 +1816,7 @@ async function cardsScenario(page, errors) {
 
   await check('cards', 'the stack tapers and peeks past the viewport', async () => {
     const info = await page.evaluate(`(() => {
-      const cards = [...document.querySelectorAll('.ntp-card')];
+      const cards = [...document.querySelectorAll('.ntp-card:not(.ntp-session-list)')];
       const rects = cards.map((card) => card.getBoundingClientRect());
       const bar = cards[2].querySelector('.ntp-card-bar').getBoundingClientRect();
       return {
@@ -1885,7 +1885,7 @@ async function cardsScenario(page, errors) {
 
   await check('cards', 'snapshot lands only on the matching url', async () => {
     const flags = await page.evaluate(
-      `[...document.querySelectorAll('.ntp-card')].map((card) => Boolean(card.querySelector('.ntp-card-snapshot img:not(.ntp-card-placeholder)')))`,
+      `[...document.querySelectorAll('.ntp-card:not(.ntp-session-list)')].map((card) => Boolean(card.querySelector('.ntp-card-snapshot img:not(.ntp-card-placeholder)')))`,
     );
     assert(flags[1] === true, 'the matching card has no snapshot');
     assert(
@@ -2036,7 +2036,7 @@ async function cardsScenario(page, errors) {
 
   await check('cards', 'the pushed cards keep a peek at the bottom edge', async () => {
     const geometry = `(() => {
-      const cards = [...document.querySelectorAll('.ntp-card')];
+      const cards = [...document.querySelectorAll('.ntp-card:not(.ntp-session-list)')];
       const bar = cards[2].querySelector('.ntp-card-bar');
       return {
         tops: cards.map((card) => Math.round(card.getBoundingClientRect().top)),
@@ -2046,7 +2046,7 @@ async function cardsScenario(page, errors) {
       };
     })()`;
     const point = await page.evaluate(`(() => {
-      const card = document.querySelectorAll('.ntp-card')[1];
+      const card = document.querySelectorAll('.ntp-card:not(.ntp-session-list)')[1];
       const rect = card.getBoundingClientRect();
       const bar = card.querySelector('.ntp-card-bar').getBoundingClientRect();
       return { x: Math.round(rect.left + rect.width / 2), y: Math.round(bar.top + bar.height / 2) };
@@ -2160,7 +2160,7 @@ async function cardsScenario(page, errors) {
     await setViewport(page, 1200, 400);
     await sleep(500);
     const info = await page.evaluate(`(() => {
-      const card = document.querySelectorAll('.ntp-card')[2];
+      const card = document.querySelectorAll('.ntp-card:not(.ntp-session-list)')[2];
       const rect = card.getBoundingClientRect();
       const stage = document.getElementById('ntp-recent');
       return {
@@ -2235,7 +2235,7 @@ async function cardsScenario(page, errors) {
       select.value = '1';
       select.dispatchEvent(new Event('change'));
     })()`);
-    await page.waitFor(`document.querySelectorAll('.ntp-card').length === 1`, {
+    await page.waitFor(`document.querySelectorAll('.ntp-card:not(.ntp-session-list)').length === 1`, {
       timeout: 3000,
       label: 'one card',
     });
@@ -2314,7 +2314,7 @@ async function cardsScenario(page, errors) {
     assert(checked === true, `the toggle starts unchecked: ${checked}`);
     await sleep(300);
     const hidden = await page.evaluate(
-      `document.querySelectorAll('.ntp-card').length`,
+      `document.querySelectorAll('.ntp-card:not(.ntp-session-list)').length`,
     );
     assert(hidden === 0, `${hidden} privileged cards slipped past the default`);
 
@@ -2323,13 +2323,13 @@ async function cardsScenario(page, errors) {
       box.checked = false;
       box.dispatchEvent(new Event('change'));
     })()`);
-    await page.waitFor(`document.querySelectorAll('.ntp-card').length === 2`, {
+    await page.waitFor(`document.querySelectorAll('.ntp-card:not(.ntp-session-list)').length === 2`, {
       timeout: 3000,
       label: 'two privileged cards',
     });
 
     const info = await page.evaluate(`(() => {
-      const cards = [...document.querySelectorAll('.ntp-card')];
+      const cards = [...document.querySelectorAll('.ntp-card:not(.ntp-session-list)')];
       const newest = cards[cards.length - 1];
       const bar = newest.querySelector('.ntp-card-bar');
       const letter = bar.querySelector('.ntp-card-bar-letter');
@@ -2396,13 +2396,13 @@ async function cardsScenario(page, errors) {
       select.value = '3';
       select.dispatchEvent(new Event('change'));
     })()`);
-    await page.waitFor(`document.querySelectorAll('.ntp-card').length === 1`, {
+    await page.waitFor(`document.querySelectorAll('.ntp-card:not(.ntp-session-list)').length === 1`, {
       timeout: 3000,
       label: 'one window card',
     });
 
     const info = await page.evaluate(`(() => {
-      const card = document.querySelector('.ntp-card');
+      const card = document.querySelector('.ntp-card:not(.ntp-session-list)');
       const bar = card.querySelector('.ntp-card-bar');
       const list = card.querySelector('.ntp-card-tabs');
       const rows = [...list.querySelectorAll('.ntp-card-tab-row')];
@@ -2546,19 +2546,22 @@ async function cardsScenario(page, errors) {
         hasExpand: Boolean(expand),
         childrenHidden: children ? children.hidden : null,
         childrenCount: children ? children.querySelectorAll('.ntp-session-row').length : 0,
-        cardZ: Number(getComputedStyle(document.querySelector('.ntp-card')).zIndex),
+        cardZ: Number(getComputedStyle(document.querySelector('.ntp-card:not(.ntp-session-list)')).zIndex),
         listZ: Number(getComputedStyle(list).zIndex),
+        listFirst: document.getElementById('ntp-recent').firstElementChild === list,
+        listIndex: getComputedStyle(list).getPropertyValue('--ntp-card-index').trim(),
+        cardCount: document.querySelectorAll('.ntp-card:not(.ntp-session-list)').length,
       };
     })()`);
 
     assert(info.rows === 3, `pinned rows: ${info.rows}`);
-    assert(info.bottomGap === 0, `tray is not flush with the viewport: ${info.bottomGap}`);
-    assert(info.radiusTop !== '0px', `tray top is square: ${info.radiusTop}`);
-    assert(info.radiusBottom === '0px', `tray bottom is rounded: ${info.radiusBottom}`);
     assert(info.restoreDisabled === true, 'restore starts enabled with nothing selected');
+    // Same frame as every other card: it is the last layer of the tower.
+    assert(info.listZ === info.cardZ, `the list is not framed like a card: ${info.listZ} vs ${info.cardZ}`);
+    assert(info.listFirst === true, 'the list is not painted first');
     assert(
-      info.cardZ > info.listZ,
-      `the tray is not the base layer: ${info.cardZ} vs ${info.listZ}`,
+      Number(info.listIndex) === info.cardCount,
+      `list stack index: ${info.listIndex} for ${info.cardCount} cards`,
     );
     assert(
       info.headings.filter(Boolean).length >= 4,
@@ -2633,7 +2636,7 @@ async function cardsScenario(page, errors) {
       select.value = '3';
       select.dispatchEvent(new Event('change'));
     })()`);
-    await page.waitFor(`document.querySelectorAll('.ntp-card').length === 3`, {
+    await page.waitFor(`document.querySelectorAll('.ntp-card:not(.ntp-session-list)').length === 3`, {
       timeout: 3000,
       label: 'three cards over the tray',
     });
@@ -2650,7 +2653,7 @@ async function cardsScenario(page, errors) {
     // every card the same way pointing at a card drops the ones above it.
     const base = await page.evaluate(`(() => {
       const list = document.getElementById('ntp-session-list').getBoundingClientRect();
-      const cards = [...document.querySelectorAll('.ntp-card')];
+      const cards = [...document.querySelectorAll('.ntp-card:not(.ntp-session-list)')];
       return {
         listTop: list.top,
         listBottom: list.bottom,
@@ -2672,7 +2675,7 @@ async function cardsScenario(page, errors) {
     await page.moveMouse(base.listLeft + base.width / 2, base.listTop + 8);
     await sleep(600);
     const lifted = await page.evaluate(`(() => {
-      const cards = [...document.querySelectorAll('.ntp-card')];
+      const cards = [...document.querySelectorAll('.ntp-card:not(.ntp-session-list)')];
       return {
         open: document.body.classList.contains('ntp-session-open'),
         tops: cards.map((card) => Math.round(card.getBoundingClientRect().top)),
@@ -2690,7 +2693,7 @@ async function cardsScenario(page, errors) {
     await sleep(600);
     const closed = await page.evaluate(`(() => ({
       open: document.body.classList.contains('ntp-session-open'),
-      top: Math.round(document.querySelector('.ntp-card').getBoundingClientRect().top),
+      top: Math.round(document.querySelector('.ntp-card:not(.ntp-session-list)').getBoundingClientRect().top),
     }))()`);
     assert(closed.open === false, 'the tray stayed open after the pointer left');
     assert(

@@ -809,7 +809,7 @@ function applyCardText() {
     return;
   }
 
-  const cards = recentElement.querySelectorAll('.ntp-card');
+  const cards = recentElement.querySelectorAll('.ntp-card:not(.ntp-session-list)');
   if (cards.length === 0) {
     return;
   }
@@ -849,13 +849,21 @@ function renderRecentCards() {
   }
 
   const total = recentCards.length;
+  // The session list is simply one more card at the back of the stack, so it
+  // takes the next index up and the stage reserves room for it as well.
+  const hasList = Boolean(sessionListElement) && !sessionListElement.hidden;
+  const stack = total + (hasList ? 1 : 0);
   recentElement.style.setProperty('--ntp-card-count', String(Math.max(1, total)));
-  // The tray is the base of the stack, so it is painted first (later siblings
-  // paint on top) and the newest card comes last.
+  recentElement.style.setProperty('--ntp-stack-count', String(Math.max(1, stack)));
+  if (hasList) {
+    sessionListElement.style.setProperty('--ntp-card-index', String(total));
+  }
+  // Later siblings paint on top, so the list comes first and the newest card
+  // comes last.
   const cards = [...recentCards]
     .reverse()
     .map((card, index) => createCardElement(card, total - 1 - index));
-  const children = sessionListElement ? [sessionListElement, ...cards] : cards;
+  const children = hasList ? [sessionListElement, ...cards] : cards;
   recentElement.replaceChildren(...children);
   applyCardText();
 }
