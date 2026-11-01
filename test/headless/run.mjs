@@ -2526,11 +2526,18 @@ async function cardsScenario(page, errors) {
         checked: input.checked,
         hidden: list.hidden,
         rows: list.querySelectorAll('.ntp-session-entry').length,
+        // hidden alone is not enough: the author display:flex rule would win
+        // over the UA's [hidden] rule and leave an empty frame on screen.
+        display: getComputedStyle(list).display,
+        box: Math.round(list.getBoundingClientRect().width),
+        cards: document.querySelectorAll('.ntp-card:not(.ntp-session-list)').length,
       };
     })()`);
     assert(info.checked === false, 'the session list is on by default');
     assert(info.hidden === true, 'the hidden session list still takes a card slot');
     assert(info.rows === 0, `hidden list still holds ${info.rows} rows`);
+    assert(info.display === 'none', `the hidden list is still painted: ${info.display}`);
+    assert(info.box === 0, `the hidden list still has a box: ${info.box}px`);
 
     await page.evaluate(`(() => {
       const input = document.getElementById('opt-session-list');
@@ -2545,7 +2552,33 @@ async function cardsScenario(page, errors) {
       `JSON.parse(localStorage.getItem('ntp-session-list'))`,
     );
     assert(stored === true, `the choice was not stored: ${stored}`);
-    return 'off by default, on after the switch, remembered';
+
+    // Turning it back off has to take the card away again.
+    await page.evaluate(`(() => {
+      const input = document.getElementById('opt-session-list');
+      input.checked = false;
+      input.dispatchEvent(new Event('change'));
+    })()`);
+    await page.waitFor(`getComputedStyle(document.getElementById('ntp-session-list')).display === 'none'`, {
+      timeout: 3000,
+      label: 'the session list to disappear',
+    });
+    const cards = await page.evaluate(
+      `document.querySelectorAll('.ntp-card:not(.ntp-session-list)').length`,
+    );
+    assert(cards >= 1, 'switching the list off took the other cards with it');
+
+    // Back on for the checks below, which are all about the list itself.
+    await page.evaluate(`(() => {
+      const input = document.getElementById('opt-session-list');
+      input.checked = true;
+      input.dispatchEvent(new Event('change'));
+    })()`);
+    await page.waitFor(`getComputedStyle(document.getElementById('ntp-session-list')).display !== 'none'`, {
+      timeout: 3000,
+      label: 'the session list to come back',
+    });
+    return 'off by default, on after the switch, gone again when switched off';
   });
 
   await check('cards', 'the pinned tray lists every session and restores a selection', async () => {

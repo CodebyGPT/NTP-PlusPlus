@@ -886,6 +886,11 @@ body.ntp-session-open .ntp-card:not(.ntp-session-list) {
     scale(calc(1 - var(--ntp-card-index, 0) * var(--ntp-card-scale-step)));
 }
 
+/* Author display beats the UA's [hidden] rule, so hide it explicitly. */
+.ntp-session-list[hidden] {
+  display: none;
+}
+
 .ntp-session-header,
 .ntp-session-row {
   display: grid;
