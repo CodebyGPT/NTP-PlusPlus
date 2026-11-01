@@ -1800,17 +1800,17 @@ async function cardsScenario(page, errors) {
   // the headless window's default 758x391 leaves them only a few dozen px tall.
   await setViewport(page, CARD_VIEWPORT_WIDTH, CARD_VIEWPORT_HEIGHT);
   await loadPage(page, { preload: 'cards', clearStorage: true });
-  await page.waitFor(`document.querySelectorAll('.ntp-card:not(.ntp-session-list)').length === 1`, {
+  await page.waitFor(`document.querySelectorAll('.ntp-card:not(.ntp-session-list)').length === 2`, {
     timeout: 10000,
-    label: '1 recent card',
+    label: '2 recent cards',
   });
   await sleep(300);
 
-  await check('cards', 'the recent count defaults to 1', async () => {
+  await check('cards', 'the recent count defaults to 2', async () => {
     const value = await page.evaluate(
       `document.getElementById('opt-recent-count').value`,
     );
-    assert(value === '1', `default is ${value}`);
+    assert(value === '2', `default is ${value}`);
     return `default ${value}`;
   });
 
@@ -2518,7 +2518,7 @@ async function cardsScenario(page, errors) {
     return `${info.rows.length} rows, last one "…", ${lines.length} lines copied`;
   });
 
-  await check('cards', 'the session list is off until it is asked for', async () => {
+  await check('cards', 'the session list can be switched off and back on', async () => {
     const info = await page.evaluate(`(() => {
       const list = document.getElementById('ntp-session-list');
       const input = document.getElementById('opt-session-list');
@@ -2533,27 +2533,11 @@ async function cardsScenario(page, errors) {
         cards: document.querySelectorAll('.ntp-card:not(.ntp-session-list)').length,
       };
     })()`);
-    assert(info.checked === false, 'the session list is on by default');
-    assert(info.hidden === true, 'the hidden session list still takes a card slot');
-    assert(info.rows === 0, `hidden list still holds ${info.rows} rows`);
-    assert(info.display === 'none', `the hidden list is still painted: ${info.display}`);
-    assert(info.box === 0, `the hidden list still has a box: ${info.box}px`);
+    assert(info.checked === true, 'the session list is off by default');
+    assert(info.hidden === false, 'the session list is hidden by default');
+    assert(info.display !== 'none', 'the default list is not painted');
 
-    await page.evaluate(`(() => {
-      const input = document.getElementById('opt-session-list');
-      input.checked = true;
-      input.dispatchEvent(new Event('change'));
-    })()`);
-    await page.waitFor(`document.getElementById('ntp-session-list').hidden === false`, {
-      timeout: 3000,
-      label: 'the session list to appear',
-    });
-    const stored = await page.evaluate(
-      `JSON.parse(localStorage.getItem('ntp-session-list'))`,
-    );
-    assert(stored === true, `the choice was not stored: ${stored}`);
-
-    // Turning it back off has to take the card away again.
+    // Off: the card has to leave the screen entirely, not just lose its rows.
     await page.evaluate(`(() => {
       const input = document.getElementById('opt-session-list');
       input.checked = false;
@@ -2563,6 +2547,11 @@ async function cardsScenario(page, errors) {
       timeout: 3000,
       label: 'the session list to disappear',
     });
+    const stored = await page.evaluate(
+      `JSON.parse(localStorage.getItem('ntp-session-list'))`,
+    );
+    assert(stored === false, `the choice was not stored: ${stored}`);
+
     const cards = await page.evaluate(
       `document.querySelectorAll('.ntp-card:not(.ntp-session-list)').length`,
     );
@@ -2578,7 +2567,7 @@ async function cardsScenario(page, errors) {
       timeout: 3000,
       label: 'the session list to come back',
     });
-    return 'off by default, on after the switch, gone again when switched off';
+    return 'on by default, gone when switched off, back when switched on';
   });
 
   await check('cards', 'the pinned tray lists every session and restores a selection', async () => {
