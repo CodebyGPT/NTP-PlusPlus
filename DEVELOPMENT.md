@@ -258,7 +258,7 @@ element.append(createSiteIcon({ url, title, favicon, variant: 'tile' }));
 - Chromium 上该选项置灰禁用：Chromium 的 topSites 只有 10 条，排除后瓦片会留空。这只是前端 `disabled`，不做防止强行开启的防御逻辑。
 - “Firefox 风格瓦片”：只切 `body` 的 class，纯视觉开关，不影响任何列表逻辑；默认跟随浏览器判定。
 - “快照尺寸”：下拉 720P/1080P/2K/4K，存 `ntp-snapshot-cap`（值就是短边像素 720/1080/1440/2160），默认 1080。它同时被镜像到 `storage.local`，因为真正做缩放的是后台脚本，而 service worker 读不到新标签页的 `localStorage`——两处都写，任一处被清掉都还能自愈。不检测屏幕分辨率，所有机器默认 1080P。
-- “最近关闭卡片最大显示数”：下拉 1/2/3，存 `ntp-recent-count`，默认 2。改动后重新取一次列表重渲染，多出的卡片直接不渲染（不是隐藏），所以 DOM 里永远不会超过选中的张数。
+- “最近关闭卡片最大显示数”：下拉 1/2/3，存 `ntp-recent-count`，默认 1。改动后重新取一次列表重渲染，多出的卡片直接不渲染（不是隐藏），所以 DOM 里永远不会超过选中的张数。
 - “排除特权页面”：勾选（默认）时只收 http/https 会话，退回到“卡片只放网页”的老行为；取消勾选就让 `chrome://`、`about:`、`file://` 也进卡片。存 `ntp-exclude-privileged`，改动后立刻重新取列表重渲染。实现是一条 `{ webOnly }` 选项穿过 `buildRecentCards()` → `toRecentSessions()`，两套过滤规则都在 `stack.js` 里，UI 只负责传布尔值。
 - “排除窗口”：勾选后 window 型条目不再变成卡片；默认**不勾选**（关掉整个窗口通常比关掉一个标签页更值得恢复）。存 `ntp-exclude-windows`，同样即时重渲染。窗口卡片内部的标签页过滤与“排除特权页面”共用同一个 `webOnly` 开关。
 - “显示最近关闭详细列表”（`#opt-session-list`）：默认**不勾选**，勾上才把详细列表这张卡片放进塔里。存 `ntp-session-list`，改动后立刻重新取列表重渲染。它是独立的开关，不受“最近关闭卡片最大显示数”影响——那个只数普通卡片。行数据也是只在这个开关打开时才从 `sessions` 列表构建（关着的时候连 DOM 都不填）。

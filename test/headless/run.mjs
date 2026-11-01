@@ -1800,17 +1800,17 @@ async function cardsScenario(page, errors) {
   // the headless window's default 758x391 leaves them only a few dozen px tall.
   await setViewport(page, CARD_VIEWPORT_WIDTH, CARD_VIEWPORT_HEIGHT);
   await loadPage(page, { preload: 'cards', clearStorage: true });
-  await page.waitFor(`document.querySelectorAll('.ntp-card:not(.ntp-session-list)').length === 2`, {
+  await page.waitFor(`document.querySelectorAll('.ntp-card:not(.ntp-session-list)').length === 1`, {
     timeout: 10000,
-    label: '2 recent cards',
+    label: '1 recent card',
   });
   await sleep(300);
 
-  await check('cards', 'the recent count defaults to 2', async () => {
+  await check('cards', 'the recent count defaults to 1', async () => {
     const value = await page.evaluate(
       `document.getElementById('opt-recent-count').value`,
     );
-    assert(value === '2', `default is ${value}`);
+    assert(value === '1', `default is ${value}`);
     return `default ${value}`;
   });
 
