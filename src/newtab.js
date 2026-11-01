@@ -1,6 +1,7 @@
 import { applyTranslations, t } from './i18n.js';
 import {
   buildRecentCards,
+  buildSessionRows,
   charLimitForWidth,
   ELLIPSIS,
   limitCardText,
@@ -57,6 +58,21 @@ const TAB_ICON_GAP_PROPERTY = '--ntp-card-tab-gap';
 // unknown browser falls back to it.
 const FIREFOX_STYLE_CLASS = 'ntp-firefox-style';
 const LETTER_FAVICONS_CLASS = 'ntp-letter-favicons';
+// The pinned list lets each column be dragged wider. These are the CSS custom
+// properties that carry the widths, one per draggable column.
+const SESSION_COLUMN_PROPERTIES = {
+  select: '--ntp-session-col-select',
+  icon: '--ntp-session-col-icon',
+  title: '--ntp-session-col-title',
+  url: '--ntp-session-col-url',
+  kind: '--ntp-session-col-kind',
+  time: '--ntp-session-col-time',
+};
+const SESSION_COLUMN_MIN_WIDTH = '3rem';
+const SESSION_CLOSED_FORMAT = new Intl.DateTimeFormat(undefined, {
+  dateStyle: 'short',
+  timeStyle: 'short',
+});
 
 const tilesElement = document.getElementById('ntp-tiles');
 const settingsButton = document.getElementById('ntp-settings-button');
@@ -70,6 +86,7 @@ const excludePrivilegedInput = document.getElementById('opt-exclude-privileged')
 const excludeWindowsInput = document.getElementById('opt-exclude-windows');
 const letterFaviconsInput = document.getElementById('opt-letter-favicons');
 const recentElement = document.getElementById('ntp-recent');
+const sessionListElement = document.getElementById('ntp-session-list');
 const copyIconTemplate = document.getElementById('ntp-card-copy-icon');
 const hiddenKeys = new Set(readStoredArray(HIDDEN_SITES_KEY));
 const settings = {
@@ -863,6 +880,8 @@ async function refreshRecentCards() {
     logEvent('snapshots:error', { message: error?.message });
   }
 
+  renderSessionList(sessions);
+
   recentCards = buildRecentCards(sessions, snapshots, settings.recentCount, {
     webOnly: settings.excludePrivileged,
     excludeWindows: settings.excludeWindows,
@@ -873,6 +892,272 @@ async function refreshRecentCards() {
     limit: settings.recentCount,
     snapshots: snapshots.length,
   });
+}
+
+let sessionRows = [];
+const selectedSessions = new Set();
+
+// A pinned row is a checkbox, the site icon, and then the fields the API gives
+// us. The window row carries a disclosure button instead of a second copy of
+// its tabs, which stay in child rows until it is opened.
+function createSessionRow(row) {
+  const element = document.createElement('div');
+  element.className = `ntp-session-entry is-${row.kind}`;
+  element.dataset.sessionId = row.sessionId;
+
+  const check = document.createElement('input');
+  check.type = 'checkbox';
+  check.className = 'ntp-session-check';
+  check.dataset.sessionCheck = row.sessionId;
+  check.checked = selectedSessions.has(row.sessionId);
+  check.addEventListener('change', () => {
+    if (check.checked) {
+      selectedSessions.add(row.sessionId);
+    } else {
+      selectedSessions.delete(row.sessionId);
+    }
+    updateRestoreButton();
+    logEvent('sessions:select', { selected: selectedSessions.size });
+  });
+
+  const leading = document.createElement('span');
+  leading.className = 'ntp-session-leading';
+  leading.append(check);
+  if (row.kind === 'window') {
+    const toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'ntp-session-expand';
+    toggle.dataset.sessionExpand = row.sessionId;
+    toggle.setAttribute('aria-expanded', 'false');
+    toggle.setAttribute('aria-label', t('sessionExpand'));
+    toggle.addEventListener('click', () => {
+      const open = toggle.getAttribute('aria-expanded') !== 'true';
+      toggle.setAttribute('aria-expanded', String(open));
+      element.classList.toggle('is-open', open);
+      const children = element.querySelector('.ntp-session-children');
+      if (children) {
+        children.hidden = !open;
+      }
+    });
+    leading.prepend(toggle);
+  }
+
+  const kind = document.createElement('span');
+  kind.className = 'ntp-session-kind';
+  kind.textContent =
+    row.kind === 'window'
+      ? `${t('sessionKindWindow')} · ${row.count}`
+      : t('sessionKindTab');
+
+  const title = document.createElement('span');
+  title.className = 'ntp-session-title';
+  title.textContent = row.title;
+  title.title = row.title;
+
+  const url = document.createElement('span');
+  url.className = 'ntp-session-url';
+  url.textContent = row.url;
+  url.title = row.url;
+
+  const time = document.createElement('span');
+  time.className = 'ntp-session-time';
+  time.textContent = row.lastModified
+    ? SESSION_CLOSED_FORMAT.format(new Date(row.lastModified))
+    : '';
+  if (row.lastModified) {
+    time.title = new Date(row.lastModified).toISOString();
+  }
+
+  const line = document.createElement('div');
+  line.className = `ntp-session-row is-${row.kind}`;
+  line.append(
+    leading,
+    createSiteIcon({ url: row.url, title: row.title, variant: 'tab' }),
+    title,
+    url,
+    kind,
+    time,
+  );
+  element.append(line);
+
+  if (row.kind === 'window') {
+    const children = document.createElement('div');
+    children.className = 'ntp-session-children';
+    children.hidden = true;
+    children.append(...row.tabs.map((tab) => createSessionChildRow(tab)));
+    element.append(children);
+  }
+
+  return element;
+}
+
+function createSessionChildRow(tab) {
+  const element = document.createElement('div');
+  element.className = 'ntp-session-entry is-child';
+
+  const spacer = document.createElement('span');
+  spacer.className = 'ntp-session-leading';
+
+  const title = document.createElement('span');
+  title.className = 'ntp-session-title';
+  title.textContent = tab.title;
+  title.title = tab.title;
+
+  const url = document.createElement('span');
+  url.className = 'ntp-session-url';
+  url.textContent = tab.url;
+  url.title = tab.url;
+
+  const kind = document.createElement('span');
+  kind.className = 'ntp-session-kind';
+
+  const time = document.createElement('span');
+  time.className = 'ntp-session-time';
+
+  const line = document.createElement('div');
+  line.className = 'ntp-session-row is-child';
+  line.append(
+    spacer,
+    createSiteIcon({ url: tab.url, title: tab.title, variant: 'tab' }),
+    title,
+    url,
+    kind,
+    time,
+  );
+  element.append(line);
+  return element;
+}
+
+function createSessionHeader() {
+  const header = document.createElement('div');
+  header.className = 'ntp-session-header';
+
+  const cells = [
+    ['select', ''],
+    ['icon', ''],
+    ['title', t('sessionHeaderTitle')],
+    ['url', t('sessionHeaderUrl')],
+    ['kind', t('sessionHeaderKind')],
+    ['time', t('sessionHeaderClosed')],
+  ].map(([column, label]) => {
+    const cell = document.createElement('span');
+    cell.className = `ntp-session-cell ntp-session-heading-${column}`;
+    cell.textContent = label;
+    if (SESSION_COLUMN_PROPERTIES[column]) {
+      cell.append(createColumnResizer(column));
+    }
+    return cell;
+  });
+
+  const actions = document.createElement('span');
+  actions.className = 'ntp-session-actions';
+  const restore = document.createElement('button');
+  restore.type = 'button';
+  restore.id = 'ntp-session-restore';
+  restore.className = 'ntp-session-restore';
+  restore.disabled = true;
+  restore.textContent = t('sessionRestore');
+  restore.addEventListener('click', () => {
+    restoreSelectedSessions();
+  });
+  actions.append(restore);
+
+  header.append(...cells, actions);
+  return header;
+}
+
+// Dragging a column edge sets one custom property and lets the shared grid
+// template do the rest, so the header and every row stay aligned for free.
+function createColumnResizer(column) {
+  const handle = document.createElement('span');
+  handle.className = 'ntp-session-resizer';
+  handle.dataset.sessionResizer = column;
+
+  handle.addEventListener('pointerdown', (event) => {
+    const heading = handle.parentElement;
+    const startX = event.clientX;
+    const startWidth = heading.getBoundingClientRect().width;
+    try {
+      handle.setPointerCapture(event.pointerId);
+    } catch {
+      // A pointer that is already gone cannot be captured; the drag still works.
+    }
+
+    const move = (moveEvent) => {
+      const width = Math.max(0, startWidth + moveEvent.clientX - startX);
+      sessionListElement.style.setProperty(
+        SESSION_COLUMN_PROPERTIES[column],
+        `max(${SESSION_COLUMN_MIN_WIDTH}, ${Math.round(width)}px)`,
+      );
+    };
+    const stop = () => {
+      handle.removeEventListener('pointermove', move);
+      handle.removeEventListener('pointerup', stop);
+      handle.removeEventListener('pointercancel', stop);
+      logEvent('sessions:column', { column });
+    };
+
+    handle.addEventListener('pointermove', move);
+    handle.addEventListener('pointerup', stop);
+    handle.addEventListener('pointercancel', stop);
+  });
+
+  return handle;
+}
+
+function updateRestoreButton() {
+  const restore = document.getElementById('ntp-session-restore');
+  if (restore) {
+    restore.disabled = selectedSessions.size === 0;
+  }
+}
+
+async function restoreSelectedSessions() {
+  const ids = [...selectedSessions];
+  if (ids.length === 0) {
+    return;
+  }
+
+  let restored = 0;
+  for (const sessionId of ids) {
+    try {
+      await extensionApi.sessions.restore(sessionId);
+      restored += 1;
+    } catch (error) {
+      logEvent('sessions:restore-error', {
+        sessionId,
+        message: error?.message,
+      });
+    }
+  }
+
+  selectedSessions.clear();
+  updateRestoreButton();
+  logEvent('sessions:restore', { requested: ids.length, restored });
+  await refreshRecentCards();
+}
+
+// The list is complete on purpose: it ignores the card settings and shows every
+// session the API is still holding.
+function renderSessionList(sessions) {
+  if (!sessionListElement) {
+    return;
+  }
+
+  sessionRows = buildSessionRows(sessions);
+  const known = new Set(sessionRows.map((row) => row.sessionId));
+  for (const sessionId of [...selectedSessions]) {
+    if (!known.has(sessionId)) {
+      selectedSessions.delete(sessionId);
+    }
+  }
+
+  sessionListElement.replaceChildren(
+    createSessionHeader(),
+    ...sessionRows.map((row) => createSessionRow(row)),
+  );
+  updateRestoreButton();
+  logEvent('sessions:list', { rows: sessionRows.length });
 }
 
 // The cards keep the display's aspect ratio however the window is shaped. A

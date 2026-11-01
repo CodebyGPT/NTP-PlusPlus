@@ -171,11 +171,8 @@ export function buildRecentCards(sessions, snapshots, maxCards, options) {
   return cards;
 }
 
-// A closed window is a single session covering many tabs, so it gets one card
-// that lists them instead of a snapshot. The head line is the tab that was in
-// front when the window closed, because that is the one people remember.
-function windowCard(window, options) {
-  const tabs = (Array.isArray(window.tabs) ? window.tabs : [])
+function windowTabs(window, options) {
+  return (Array.isArray(window.tabs) ? window.tabs : [])
     .filter(
       (tab) =>
         tab && (options.webOnly ? isWebUrl(tab.url) : isCardUrl(tab.url)),
@@ -185,6 +182,13 @@ function windowCard(window, options) {
       url: tab.url,
       active: tab.active === true,
     }));
+}
+
+// A closed window is a single session covering many tabs, so it gets one card
+// that lists them instead of a snapshot. The head line is the tab that was in
+// front when the window closed, because that is the one people remember.
+function windowCard(window, options) {
+  const tabs = windowTabs(window, options);
 
   // A window whose every tab was filtered out has nothing to show or restore.
   if (tabs.length === 0) {
@@ -200,4 +204,56 @@ function windowCard(window, options) {
     count: tabs.length,
     tabs: tabs.map(({ title, url }) => ({ title, url })),
   };
+}
+
+// The pinned list shows everything the API returns, so it is flat: one row per
+// session, with a window row carrying its tabs for the expander. Ordering is
+// the API's own (most recent first) and nothing here is capped or filtered by
+// settings -- the list is a complete picture, not a preview.
+export function buildSessionRows(sessions, { webOnly = false } = {}) {
+  const rows = [];
+
+  for (const entry of sessions ?? []) {
+    const lastModified = Number(entry?.lastModified) || 0;
+
+    if (entry?.window) {
+      const tabs = windowTabs(entry.window, { webOnly });
+
+      if (tabs.length === 0) {
+        continue;
+      }
+
+      const head = tabs.find((tab) => tab.active) ?? tabs[0];
+
+      rows.push({
+        kind: 'window',
+        sessionId: entry.window.sessionId,
+        title: head.title,
+        url: head.url,
+        lastModified,
+        count: tabs.length,
+        tabs: tabs.map(({ title, url }) => ({ title, url })),
+      });
+      continue;
+    }
+
+    const tab = entry?.tab;
+    if (!tab || typeof tab.sessionId !== 'string') {
+      continue;
+    }
+
+    if (webOnly ? !isWebUrl(tab.url) : !isCardUrl(tab.url)) {
+      continue;
+    }
+
+    rows.push({
+      kind: 'tab',
+      sessionId: tab.sessionId,
+      title: tab.title || tab.url,
+      url: tab.url,
+      lastModified,
+    });
+  }
+
+  return rows;
 }

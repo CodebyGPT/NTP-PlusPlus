@@ -75,5 +75,32 @@
   "optionSnapshotCap": {
     "message": "快照尺寸",
     "description": "最近关闭卡片的快照分辨率"
+  },
+  "sessionListLabel": {
+    "message": "最近关闭的会话"
+  },
+  "sessionHeaderTitle": {
+    "message": "标题"
+  },
+  "sessionHeaderUrl": {
+    "message": "链接"
+  },
+  "sessionHeaderKind": {
+    "message": "类型"
+  },
+  "sessionHeaderClosed": {
+    "message": "关闭时间"
+  },
+  "sessionRestore": {
+    "message": "恢复"
+  },
+  "sessionKindTab": {
+    "message": "标签页"
+  },
+  "sessionKindWindow": {
+    "message": "窗口"
+  },
+  "sessionExpand": {
+    "message": "展开标签页"
   }
 }

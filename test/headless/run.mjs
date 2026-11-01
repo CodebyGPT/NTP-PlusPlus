@@ -2496,6 +2496,151 @@ async function cardsScenario(page, errors) {
     return `${info.rows.length} rows, last one "…", ${lines.length} lines copied`;
   });
 
+  await check('cards', 'the pinned tray lists every session and restores a selection', async () => {
+    await page.evaluate(`(() => {
+      const api = globalThis.browser ?? globalThis.chrome;
+      api.sessions.getRecentlyClosed = async () => [
+        { tab: { sessionId: 'p-1', title: 'Pinned one', url: 'https://one.example/alpha' }, lastModified: 1700000000000 },
+        { tab: { sessionId: 'p-2', title: 'Pinned two', url: 'https://two.example/beta' }, lastModified: 1699999000000 },
+        { window: { sessionId: 'p-w', tabs: [
+          { title: 'Inner one', url: 'https://inner.example/one' },
+          { title: 'Inner two', url: 'https://inner.example/two', active: true },
+        ] } },
+      ];
+      api.sessions.restore = async (sessionId) => {
+        globalThis.__restoredSession = sessionId;
+      };
+      globalThis.__restoredSession = undefined;
+      const select = document.getElementById('opt-recent-count');
+      select.value = '1';
+      select.dispatchEvent(new Event('change'));
+    })()`);
+    await page.waitFor(`document.querySelectorAll('#ntp-session-list > .ntp-session-entry').length === 3`, {
+      timeout: 3000,
+      label: 'three pinned rows',
+    });
+
+    const info = await page.evaluate(`(() => {
+      const list = document.getElementById('ntp-session-list');
+      const box = list.getBoundingClientRect();
+      const style = getComputedStyle(list);
+      const entries = [...list.querySelectorAll(':scope > .ntp-session-entry')];
+      const headings = [...list.querySelectorAll('.ntp-session-cell')].map((cell) => cell.textContent.trim());
+      const expand = list.querySelector('.ntp-session-expand');
+      const children = list.querySelector('.ntp-session-children');
+      return {
+        rows: entries.length,
+        bottomGap: window.innerHeight - box.bottom,
+        leftGap: Math.round(box.left),
+        radiusTop: style.borderTopLeftRadius,
+        radiusBottom: style.borderBottomLeftRadius,
+        headings,
+        restoreDisabled: document.getElementById('ntp-session-restore').disabled,
+        kinds: entries.map((entry) => entry.querySelector('.ntp-session-kind').textContent),
+        lastTimes: entries.map((entry) => entry.querySelector('.ntp-session-time').textContent),
+        columns: entries.map((entry) => entry.querySelector('.ntp-session-row').children.length),
+        hasExpand: Boolean(expand),
+        childrenHidden: children ? children.hidden : null,
+        childrenCount: children ? children.querySelectorAll('.ntp-session-row').length : 0,
+        cardZ: Number(getComputedStyle(document.querySelector('.ntp-card')).zIndex),
+        listZ: Number(getComputedStyle(list).zIndex),
+      };
+    })()`);
+
+    assert(info.rows === 3, `pinned rows: ${info.rows}`);
+    assert(info.bottomGap === 0, `tray is not flush with the viewport: ${info.bottomGap}`);
+    assert(info.radiusTop !== '0px', `tray top is square: ${info.radiusTop}`);
+    assert(info.radiusBottom === '0px', `tray bottom is rounded: ${info.radiusBottom}`);
+    assert(info.restoreDisabled === true, 'restore starts enabled with nothing selected');
+    assert(info.cardZ < info.listZ, `cards paint over the tray: ${info.cardZ} vs ${info.listZ}`);
+    assert(
+      info.headings.filter(Boolean).length >= 4,
+      `column headings missing: ${info.headings.join('|')}`,
+    );
+    assert(info.kinds[2].includes('·'), `window row has no tab count: ${info.kinds[2]}`);
+    assert(info.lastTimes[0] !== '', 'a closed time was dropped');
+    assert(info.columns.every((count) => count === 6), `row cells: ${info.columns.join(',')}`);
+    assert(info.hasExpand && info.childrenHidden === true, 'the window row is not collapsed');
+    assert(info.childrenCount === 2, `window children: ${info.childrenCount}`);
+
+    // Expanding is a plain button toggling hidden rows, so no re-render is
+    // needed and the selection survives it.
+    await page.evaluate(`document.querySelector('.ntp-session-expand').click()`);
+    const expanded = await page.evaluate(`(() => {
+      const children = document.querySelector('.ntp-session-children');
+      return {
+        hidden: children.hidden,
+        open: document.querySelector('.ntp-session-expand').getAttribute('aria-expanded'),
+        visible: children.querySelectorAll('.ntp-session-row').length,
+      };
+    })()`);
+    assert(expanded.hidden === false, 'the window row did not expand');
+    assert(expanded.open === 'true', `aria-expanded: ${expanded.open}`);
+    assert(expanded.visible === 2, `visible children: ${expanded.visible}`);
+
+    // Dragging a column edge widens that column only.
+    const widths = await page.evaluate(`(async () => {
+      const before = document.querySelector('.ntp-session-row .ntp-session-title').getBoundingClientRect().width;
+      const handle = document.querySelector('[data-session-resizer="title"]');
+      const heading = handle.parentElement;
+      const box = heading.getBoundingClientRect();
+      const options = { bubbles: true, pointerId: 1, clientY: box.top + box.height / 2 };
+      handle.dispatchEvent(new PointerEvent('pointerdown', { ...options, clientX: box.right - 2 }));
+      handle.dispatchEvent(new PointerEvent('pointermove', { ...options, clientX: box.right + 60 }));
+      handle.dispatchEvent(new PointerEvent('pointerup', { ...options, clientX: box.right + 60 }));
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+      const after = document.querySelector('.ntp-session-row .ntp-session-title').getBoundingClientRect().width;
+      return { before, after };
+    })()`);
+    assert(
+      widths.after > widths.before + 20,
+      `column did not grow: ${widths.before} -> ${widths.after}`,
+    );
+
+    // Selecting a row arms the header button; restoring clears the selection.
+    await page.evaluate(`(() => {
+      const check = document.querySelector('.ntp-session-check');
+      check.checked = true;
+      check.dispatchEvent(new Event('change', { bubbles: true }));
+    })()`);
+    const armed = await page.evaluate(
+      `document.getElementById('ntp-session-restore').disabled`,
+    );
+    assert(armed === false, 'the restore button stayed disabled after selecting a row');
+
+    await page.evaluate(`document.getElementById('ntp-session-restore').click()`);
+    await page.waitFor(`globalThis.__restoredSession === 'p-1'`, {
+      timeout: 3000,
+      label: 'restored the selected session',
+    });
+    const settled = await page.evaluate(`(() => ({
+      restored: globalThis.__restoredSession,
+      disabled: document.getElementById('ntp-session-restore').disabled,
+    }))()`);
+    assert(settled.restored === 'p-1', `restored ${settled.restored}`);
+    assert(settled.disabled === true, 'the selection survived the restore');
+
+    await page.evaluate(`(() => {
+      document.getElementById('ntp-session-list').style.removeProperty('--ntp-session-col-title');
+      const select = document.getElementById('opt-recent-count');
+      select.value = '3';
+      select.dispatchEvent(new Event('change'));
+    })()`);
+    await page.waitFor(`document.querySelectorAll('.ntp-card').length === 3`, {
+      timeout: 3000,
+      label: 'three cards over the tray',
+    });
+    await page.evaluate(`(() => {
+      const expand = document.querySelector('.ntp-session-expand');
+      if (expand && expand.getAttribute('aria-expanded') !== 'true') {
+        expand.click();
+      }
+    })()`);
+    await recordScreenshot(page, 'cards', 'chrome-session-list.png');
+
+    return `${info.rows} rows, tray flush at the bottom, restore wired`;
+  });
+
   await check('cards', 'no uncaught page errors', async () => {
     assert(
       errors.errors.length === 0,

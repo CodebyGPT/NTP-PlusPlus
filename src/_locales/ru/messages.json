@@ -75,5 +75,32 @@
   "optionSnapshotCap": {
     "message": "Размер снимка",
     "description": "Разрешение снимков закрытых вкладок"
+  },
+  "sessionListLabel": {
+    "message": "Недавно закрытые сеансы"
+  },
+  "sessionHeaderTitle": {
+    "message": "Заголовок"
+  },
+  "sessionHeaderUrl": {
+    "message": "Ссылка"
+  },
+  "sessionHeaderKind": {
+    "message": "Тип"
+  },
+  "sessionHeaderClosed": {
+    "message": "Закрыто"
+  },
+  "sessionRestore": {
+    "message": "Восстановить"
+  },
+  "sessionKindTab": {
+    "message": "Вкладка"
+  },
+  "sessionKindWindow": {
+    "message": "Окно"
+  },
+  "sessionExpand": {
+    "message": "Показать вкладки"
   }
 }

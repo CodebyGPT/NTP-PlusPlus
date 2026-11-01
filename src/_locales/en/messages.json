@@ -75,5 +75,32 @@
   "optionSnapshotCap": {
     "message": "Snapshot size",
     "description": "Snapshot resolution for recently closed tabs"
+  },
+  "sessionListLabel": {
+    "message": "Recently closed sessions"
+  },
+  "sessionHeaderTitle": {
+    "message": "Title"
+  },
+  "sessionHeaderUrl": {
+    "message": "Link"
+  },
+  "sessionHeaderKind": {
+    "message": "Type"
+  },
+  "sessionHeaderClosed": {
+    "message": "Closed"
+  },
+  "sessionRestore": {
+    "message": "Restore"
+  },
+  "sessionKindTab": {
+    "message": "Tab"
+  },
+  "sessionKindWindow": {
+    "message": "Window"
+  },
+  "sessionExpand": {
+    "message": "Show tabs"
   }
 }

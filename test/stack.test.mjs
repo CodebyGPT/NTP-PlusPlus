@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 
 import {
   buildRecentCards,
+  buildSessionRows,
   charLimitForWidth,
   ELLIPSIS,
   limitCardText,
@@ -195,6 +196,50 @@ assert.deepEqual(
     3,
   ),
   [],
+);
+
+// The pinned list keeps every session and adds the close timestamp, which is
+// the one field the cards never needed.
+const sessionRows = buildSessionRows([
+  { tab: { sessionId: 't1', title: 'One', url: 'https://one.example/' }, lastModified: 1700000000000 },
+  {
+    window: {
+      sessionId: 'w1',
+      tabs: [
+        { title: 'A', url: 'https://a.example/' },
+        { title: 'B', url: 'https://b.example/', active: true },
+      ],
+    },
+    lastModified: 1699999999000,
+  },
+]);
+assert.deepEqual(
+  sessionRows.map((row) => [row.kind, row.sessionId]),
+  [
+    ['tab', 't1'],
+    ['window', 'w1'],
+  ],
+);
+assert.equal(sessionRows[0].lastModified, 1700000000000);
+assert.equal(sessionRows[1].count, 2);
+assert.equal(sessionRows[1].title, 'B');
+assert.deepEqual(
+  sessionRows[1].tabs.map((tab) => tab.url),
+  ['https://a.example/', 'https://b.example/'],
+);
+// Missing or junk timestamps read as 0 rather than NaN.
+assert.equal(
+  buildSessionRows([{ tab: { sessionId: 't2', url: 'https://two.example/' }, lastModified: 'nope' }])[0]
+    .lastModified,
+  0,
+);
+// A window with nothing restorable inside is dropped instead of listed empty.
+assert.deepEqual(buildSessionRows([{ window: { sessionId: 'w2', tabs: [] } }]), []);
+// webOnly still filters privileged pages for people who asked for it.
+assert.equal(
+  buildSessionRows([{ tab: { sessionId: 't3', url: 'chrome://settings/' } }], { webOnly: true })
+    .length,
+  0,
 );
 
 console.log('stack checks passed');

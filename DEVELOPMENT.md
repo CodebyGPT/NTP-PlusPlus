@@ -122,10 +122,10 @@ src/
   background.js          后台脚本：截图、1080p 压缩、最近关闭快照槽位
   i18n.js                t()、data-i18n 与 data-i18n-aria
   icons.js               唯一的图标来源：favicon 取值策略 + 首字母徽章降级
-  newtab.html            瓦片网格、最近关闭卡片、设置按钮与设置弹窗
-  newtab.css             纯色背景、瓦片、卡片、设置弹窗、深浅色回退、视口自适应
-  newtab.js              主题同步 + 瓦片渲染 + 卡片渲染 + 设置 + 页面内关闭逻辑
-  stack.js               最近关闭卡片纯函数（会话规整、快照配对、字符数上限）
+  newtab.html            瓦片网格、最近关闭卡片、常驻会话托盘、设置按钮与设置弹窗
+  newtab.css             纯色背景、瓦片、卡片、会话托盘、设置弹窗、深浅色回退、视口自适应
+  newtab.js              主题同步 + 瓦片渲染 + 卡片渲染 + 托盘渲染 + 设置 + 页面内关闭逻辑
+  stack.js               最近关闭会话纯函数（卡片规整、快照配对、字符数上限、托盘行）
   topsites.js            常用网站纯函数（过滤、去重、域名收敛、匹配）
 scripts/
   build.mjs              生成 dist/chrome 与 dist/firefox
@@ -236,6 +236,18 @@ element.append(createSiteIcon({ url, title, favicon, variant: 'tile' }));
 - 窗口卡片由 `stack.js` 的 `windowCard()` 产出：过滤规则与标签页卡片一致（`webOnly` 时只留 http/https，否则用 `isCardUrl`），过滤后一个标签页都不剩就返回 `undefined`，整张卡片不渲染。窗口卡片与标签页卡片平等占用同一个 `maxCards` 名额。
 - 带替换的文案（如 `windowCardTitle`）必须在 `messages.json` 里写 `placeholders`（`{"head": {"content": "$1"}}`），正文写 `$head$`；只写 `$1$` 会让 Chrome **拒绝加载整个扩展**，报 “Variable $1$ used but not defined”。`getMessage(key, [a, b])` 按顺序填 `$1`、`$2`。
 
+### 常驻会话托盘
+
+- 这一块贴着视口底边常驻，**不受设置影响**：卡片显示几张、是否排除窗口、是否排除特权页面，都只影响上面的卡片组，托盘永远列出 `sessions.getRecentlyClosed()` 返回的全部条目（无法恢复的 `data:`/`blob:`/`javascript:` 和浏览器空白页照样跳过，这不是设置，是没法恢复）。
+- 它画在卡片组**前面**（`z-index: 3`，卡片是 2），所以卡片像从托盘上边缘伸出来，而列表永远完整可见、可点。托盘高度固定 `--ntp-session-block-size`（`clamp(12rem, 38vh, 24rem)`），不随行数变：行数多了在托盘内部滚动（表头 `position: sticky`），这样卡片被托盘遮住的量是稳定的，不会因为一次关闭标签页就跳。
+- 上圆角、下方角：`border-radius: var(--ntp-card-radius) var(--ntp-card-radius) 0 0`，底边正好压在视口底部（`position: fixed; inset-block-end: 0`），左右用和卡片组同一个 `--ntp-card-gutter`，看起来就是卡片组的底座。
+- 表头一行是列名 + 最右边的“恢复”按钮（`#ntp-session-restore`）；没勾选任何行时 `disabled`，靠 `opacity` 变灰但**不离场**，否则表头会跳一下。
+- 每一行：左边复选框，然后图标（同一个 `createSiteIcon()`）、标题、链接、类型、关闭时间（`Intl.DateTimeFormat`，短日期 + 时间；原始时间戳挂在 `title` 上）。标签页行是普通行；窗口行默认折叠成一行（类型列显示“窗口 · N”），左侧多一个展开按钮（原生 `<button aria-expanded>` 切换子行的 `hidden`，展开不重新渲染，勾选状态不会丢），展开后逐行列出它包含的标签页。
+- 行模型在 `stack.js` 的 `buildSessionRows()` 里，纯函数、可单测：tab 条目 → 一行，window 条目 → 一行外加 `tabs`；`lastModified` 解析成数字，取不到就是 0（显示为空而不是 NaN）。
+- 列宽可拖：每列表头右边缘有一条 `.ntp-session-resizer`，`pointerdown` + 拖拽只改托盘上的一个自定义属性（`--ntp-session-col-<列>` = `max(3rem, Npx)`），表头与所有行共用同一份 `grid-template-columns`，所以天然对齐；总宽超出托盘时托盘整体横向滚动。注意 **不能** 把整串 `grid-template-columns` 存进一个 `--ntp-session-columns` token：CSS 的 `var()` 间接引用在声明处解析，托盘上拖出来的宽度会被 `:root` 里的旧值吃掉，必须把 track 列表直接写在规则里。
+- 恢复：勾选若干行后点表头按钮，逐个 `sessions.restore(sessionId)`（一次失败不影响其余），然后清空勾选、重新取列表。
+- 鼠标扫过托盘时卡片组必须停在原位：托盘在前本来就挡住了卡片，另外补一条 `body:has(.ntp-session-list:hover) .ntp-card { inset-block-start: 0 }` 兜底，避免指针经过卡片露头处时整摞下坠（`:has()` 在 Firefox 121 以下会被忽略，那时托盘照样挡着，行为不变）。
+
 ### 设置弹窗
 
 - 原生 `<dialog>` + `showModal()`；`::backdrop` 压暗背景；点背景（事件目标就是 dialog 本身）或关闭按钮关闭。
@@ -285,6 +297,12 @@ npm run build
 - [ ] 快照按深度褪色：3 张时 60% / 35% / 10%，只显示 1 张时是 60%
 - [ ] 没有快照的卡片在快照区居中显示 favicon（Firefox 显示首字母），不是一片空白，也没有被拉满整张卡片
 - [ ] 快照只在内存里（重启浏览器后为空），超 1080p 的已压到 1080p
+- [ ] 视口底部常驻托盘：贴着视口底边、左右与卡片组同宽、上圆角下直角，卡片从它上边缘伸出来；行数、类型（窗口/标签页）、关闭时间都对得上 `sessions.getRecentlyClosed()`
+- [ ] 托盘不受设置影响：把“最近关闭卡片最大显示数”改成 1、勾上“排除窗口”，托盘里照样是完整列表
+- [ ] 勾选若干行后“恢复”按钮才可用，点它能把选中的会话恢复回来并刷新；未勾选时是灰的但仍在原位
+- [ ] 窗口行能展开/收起它包含的标签页，展开时勾选状态不丢
+- [ ] 拖动表头列边缘能改列宽，表头和数据行始终对齐，内容超宽时托盘横向滚动
+- [ ] 鼠标扫过托盘时卡片组不会整体下坠
 - [ ] 设置里改“最近关闭卡片最大显示数”立即生效，刷新后仍保持
 - [ ] 设置里改“快照尺寸”后，新截的快照按新上限缩放（720P 明显更小、4K 几乎不缩），刷新后保持；从没打开过设置时默认 1080P
 - [ ] “排除特权页面”默认勾选时 `chrome://` 页面不出卡片，取消勾选后立刻出现；刷新后保持上次的选择

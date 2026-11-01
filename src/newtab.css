@@ -87,6 +87,17 @@
   --ntp-card-placeholder-size: 2.5rem;
   /* Closed tabs fade out: the nearest snapshot keeps 60% of its color, the
      furthest drops to 10%, everything between is interpolated by depth. */
+  /* A fixed height keeps the visible part of the cards stable; the list
+     scrolls inside instead of resizing the tray row by row. */
+  --ntp-session-block-size: clamp(12rem, 38vh, 24rem);
+  --ntp-session-padding: clamp(0.5rem, 1vw, 1rem);
+  --ntp-session-gap: 0.5rem;
+  --ntp-session-col-select: 2.5rem;
+  --ntp-session-col-icon: 1.5rem;
+  --ntp-session-col-title: 18rem;
+  --ntp-session-col-url: 26rem;
+  --ntp-session-col-kind: 7rem;
+  --ntp-session-col-time: 9rem;
   --ntp-card-saturation-max: 0.6;
   --ntp-card-saturation-min: 0.1;
   /* Material 3 Expressive "default spatial" curve: the overshoot past 1 is the
@@ -536,6 +547,8 @@ body.ntp-firefox-style .ntp-tile-link:focus-visible .ntp-tile-icon {
    squashing it. */
 .ntp-card {
   position: absolute;
+  /* Behind the pinned tray, so the stack looks like it slides into it. */
+  z-index: 2;
   inset-block-start: 0;
   inset-inline: 0;
   box-sizing: border-box;
@@ -565,6 +578,16 @@ body.ntp-firefox-style .ntp-tile-link:focus-visible .ntp-tile-icon {
 .ntp-card:hover ~ .ntp-card,
 .ntp-card:focus-within ~ .ntp-card {
   inset-block-start: calc(100% - var(--ntp-card-overhang) - var(--ntp-card-peek));
+}
+
+/* While the pointer is on the tray the stack must stay put: the tray is in
+   front, so a card can only ever be hovered through the gaps, and having the
+   whole stack lurch as the pointer sweeps over the list reads as a bug.
+   :has() is a bonus rule -- without it (Firefox before 121) the tray still
+   covers the cards and nothing moves. */
+body:has(.ntp-session-list:hover) .ntp-card,
+body:has(.ntp-session-list:hover) .ntp-card ~ .ntp-card {
+  inset-block-start: 0;
 }
 
 .ntp-card-open {
@@ -828,4 +851,184 @@ body.ntp-firefox-style .ntp-tile-link:focus-visible .ntp-tile-icon {
   overflow: auto;
   white-space: pre-wrap;
   user-select: text;
+}
+
+/* --- pinned session tray ------------------------------------------------ */
+
+/* Pinned to the viewport edge, drawn under the card stack, and driven by the
+   session list itself rather than by the card settings. */
+.ntp-session-list {
+  position: fixed;
+  inset-inline: var(--ntp-card-gutter);
+  inset-block-end: 0;
+  /* In front of the cards: the stack pokes out from behind the tray edge and
+     the list stays clickable. */
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  block-size: var(--ntp-session-block-size);
+  margin: 0;
+  overflow: auto;
+  /* Rounded on top, square underneath: it is the floor, not a card. */
+  border-radius: var(--ntp-card-radius) var(--ntp-card-radius) 0 0;
+  background-color: var(--ntp-card-bg);
+  box-shadow: var(--ntp-card-shadow);
+  color: var(--ntp-card-fg);
+  font-size: var(--ntp-card-bar-font-size);
+}
+
+.ntp-session-list:empty {
+  display: none;
+}
+
+.ntp-session-header,
+.ntp-session-row {
+  display: grid;
+  /* Spelled out here rather than through one shared token: var() indirection
+     resolves against the element that declares it, so a token holding the whole
+     track list would ignore the widths dragged onto the tray. */
+  grid-template-columns: var(--ntp-session-col-select) var(--ntp-session-col-icon)
+    var(--ntp-session-col-title) var(--ntp-session-col-url)
+    var(--ntp-session-col-kind) var(--ntp-session-col-time) auto;
+  align-items: center;
+  gap: var(--ntp-session-gap);
+  padding-inline: var(--ntp-session-padding);
+  min-inline-size: max-content;
+}
+
+.ntp-session-entry {
+  min-inline-size: max-content;
+}
+
+.ntp-session-header {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 1;
+  padding-block: var(--ntp-session-padding);
+  background-color: var(--ntp-card-bar-bg);
+  border-block-end: 1px solid var(--ntp-card-border);
+  color: var(--ntp-card-muted);
+  font-weight: 600;
+}
+
+.ntp-session-row {
+  padding-block: calc(var(--ntp-session-padding) * 0.5);
+  border-block-end: 1px solid var(--ntp-card-border);
+}
+
+.ntp-session-row.is-child {
+  color: var(--ntp-card-muted);
+}
+
+.ntp-session-cell,
+.ntp-session-leading,
+.ntp-session-title,
+.ntp-session-url,
+.ntp-session-kind,
+.ntp-session-time {
+  min-inline-size: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.ntp-session-leading {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  overflow: visible;
+}
+
+.ntp-session-check {
+  inline-size: 1rem;
+  block-size: 1rem;
+  margin: 0;
+  accent-color: var(--ntp-focus-ring);
+}
+
+.ntp-session-expand {
+  inline-size: 1.25rem;
+  block-size: 1.25rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ntp-card-muted);
+  font-size: 0.75rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.ntp-session-expand::before {
+  content: "▸";
+}
+
+.ntp-session-expand[aria-expanded="true"]::before {
+  content: "▾";
+}
+
+.ntp-session-time {
+  color: var(--ntp-card-muted);
+}
+
+.ntp-session-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.ntp-session-restore {
+  padding-inline: 0.75rem;
+  padding-block: 0.25rem;
+  border: 1px solid var(--ntp-card-border);
+  border-radius: var(--ntp-card-copy-radius);
+  background-color: var(--ntp-card-bar-bg);
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background-color var(--ntp-transition) var(--ntp-card-ease),
+    opacity var(--ntp-transition) var(--ntp-card-ease);
+}
+
+.ntp-session-restore:disabled {
+  /* Kept in the flow so the header does not jump when a row is selected. */
+  opacity: 0.4;
+  cursor: default;
+}
+
+.ntp-session-restore:not(:disabled):hover {
+  background-color: var(--ntp-tile-bg-hover);
+}
+
+/* A thin grab strip on the right edge of every draggable heading. */
+.ntp-session-heading-select,
+.ntp-session-heading-icon,
+.ntp-session-heading-title,
+.ntp-session-heading-url,
+.ntp-session-heading-kind,
+.ntp-session-heading-time {
+  position: relative;
+}
+
+.ntp-session-resizer {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: calc(var(--ntp-session-gap) * -0.5);
+  inline-size: var(--ntp-session-gap);
+  cursor: col-resize;
+}
+
+.ntp-session-resizer:hover {
+  background-color: var(--ntp-card-border);
+}
+
+.ntp-session-list :focus-visible {
+  outline: 2px solid var(--ntp-focus-ring);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ntp-session-restore {
+    transition: none;
+  }
 }
