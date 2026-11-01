@@ -2518,6 +2518,36 @@ async function cardsScenario(page, errors) {
     return `${info.rows.length} rows, last one "…", ${lines.length} lines copied`;
   });
 
+  await check('cards', 'the session list is off until it is asked for', async () => {
+    const info = await page.evaluate(`(() => {
+      const list = document.getElementById('ntp-session-list');
+      const input = document.getElementById('opt-session-list');
+      return {
+        checked: input.checked,
+        hidden: list.hidden,
+        rows: list.querySelectorAll('.ntp-session-entry').length,
+      };
+    })()`);
+    assert(info.checked === false, 'the session list is on by default');
+    assert(info.hidden === true, 'the hidden session list still takes a card slot');
+    assert(info.rows === 0, `hidden list still holds ${info.rows} rows`);
+
+    await page.evaluate(`(() => {
+      const input = document.getElementById('opt-session-list');
+      input.checked = true;
+      input.dispatchEvent(new Event('change'));
+    })()`);
+    await page.waitFor(`document.getElementById('ntp-session-list').hidden === false`, {
+      timeout: 3000,
+      label: 'the session list to appear',
+    });
+    const stored = await page.evaluate(
+      `JSON.parse(localStorage.getItem('ntp-session-list'))`,
+    );
+    assert(stored === true, `the choice was not stored: ${stored}`);
+    return 'off by default, on after the switch, remembered';
+  });
+
   await check('cards', 'the pinned tray lists every session and restores a selection', async () => {
     await page.evaluate(`(() => {
       const api = globalThis.browser ?? globalThis.chrome;

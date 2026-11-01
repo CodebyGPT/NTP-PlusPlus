@@ -58,6 +58,9 @@
     "message": "Exclude windows",
     "description": "Closed windows appear as one card listing their tabs."
   },
+  "optionSessionList": {
+    "message": "Show the session list"
+  },
   "windowCardTitle": {
     "message": "A window containing \"$head$\" and $count$ tabs in total",
     "placeholders": {

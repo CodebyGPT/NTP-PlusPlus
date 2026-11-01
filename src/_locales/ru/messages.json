@@ -58,6 +58,9 @@
     "message": "Исключить окна",
     "description": "Закрытое окно показывается одной карточкой со списком вкладок."
   },
+  "optionSessionList": {
+    "message": "Показывать список сеансов"
+  },
   "windowCardTitle": {
     "message": "Окно, содержащее «$head$», всего вкладок: $count$",
     "placeholders": {

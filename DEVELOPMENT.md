@@ -241,7 +241,7 @@ element.append(createSiteIcon({ url, title, favicon, variant: 'tile' }));
 - 它**不受设置影响**：卡片显示几张、是否排除窗口、是否排除特权页面，都只影响上面的卡片组，托盘永远列出 `sessions.getRecentlyClosed()` 返回的全部条目（无法恢复的 `data:`/`blob:`/`javascript:` 和浏览器空白页照样跳过，这不是设置，是没法恢复）。
 - 它**就是塔里的一张普通卡片**，不是另一套布局：元素同时带 `.ntp-card`（同一份框体、圆角、阴影、`aspect-ratio`、阶梯 `transform`）和 `.ntp-session-list`（只负责内部是表头 + 行而不是快照）。渲染上它排在 `#ntp-recent` 的第一个子节点（画在最后面），索引取 `--ntp-card-index` = 卡片张数，也就是比最旧那张卡片再高一级台阶；不过它只露出 **1 倍**标题栏高（`--ntp-session-peek`），补偿量是 `--ntp-card-step - --ntp-session-peek`，同时从舞台的 `margin-block-start` 里扣掉同样多，塔顶才不会空出一条。指针移上去时其余卡片下滑，把它整块让出来。
 - 设置里的“最近关闭卡片最大显示数”**只数普通卡片**：详细列表不参与计数、不占名额，设成 1 时照样是“1 张卡片 + 这张列表”。舞台的上边距按 `--ntp-stack-count`（卡片数 + 1）预留，所以塔顶不会空出一条，列表的表头也不会顶到瓦片上。
-- 一条会话都没有时整块 `hidden`（`renderSessionList()` 里按行数切），不留一条空表头，舞台也自动少预留一级。
+- 一条会话都没有、或者设置里没打开“显示最近关闭详细列表”时整块 `hidden`（`renderSessionList()` 里按行数 + 开关切），不留一条空表头，舞台也自动少预留一级。隐藏时**节点仍留在 DOM 里**（`renderRecentCards()` 只切 `hidden`，不把它从 `replaceChildren` 里拿掉），否则开关就再也找不回这张卡片。
 - 指针移到露出的那条表头上（或键盘 Tab 进托盘）时，其余卡片一起下滑到与悬停其它卡片相同的落点，把列表让出来：`body.ntp-session-open .ntp-card:not(.ntp-session-list) { inset-block-start: calc(100% - var(--ntp-card-overhang) - var(--ntp-card-peek)) }`。这个 class 由 `pointerenter`/`pointerleave`/`focusin`/`focusout` 切换，**不用** `:has()`——列表在卡片后面，Firefox 121 以下没有 `:has()` 时它永远点不到。
 - 它不贴着视口底边：和别的卡片一样按屏幕比例算出高度、四角都是 `--ntp-card-radius`，内容多了就在卡片内部滚动（表头 `position: sticky`）。
 - 表头一行是列名 + 最右边的“恢复”按钮（`#ntp-session-restore`）；没勾选任何行时 `disabled`，靠 `opacity` 变灰但**不离场**，否则表头会跳一下。这一格 `position: sticky; inset-inline-end: 0` 并带自己的背景色：列宽是固定的，窗口一窄整张表就要横向滚动，按钮必须钉在滚动视口右边才不会滑出去点不到。
@@ -261,6 +261,7 @@ element.append(createSiteIcon({ url, title, favicon, variant: 'tile' }));
 - “最近关闭卡片最大显示数”：下拉 1/2/3，存 `ntp-recent-count`，默认 2。改动后重新取一次列表重渲染，多出的卡片直接不渲染（不是隐藏），所以 DOM 里永远不会超过选中的张数。
 - “排除特权页面”：勾选（默认）时只收 http/https 会话，退回到“卡片只放网页”的老行为；取消勾选就让 `chrome://`、`about:`、`file://` 也进卡片。存 `ntp-exclude-privileged`，改动后立刻重新取列表重渲染。实现是一条 `{ webOnly }` 选项穿过 `buildRecentCards()` → `toRecentSessions()`，两套过滤规则都在 `stack.js` 里，UI 只负责传布尔值。
 - “排除窗口”：勾选后 window 型条目不再变成卡片；默认**不勾选**（关掉整个窗口通常比关掉一个标签页更值得恢复）。存 `ntp-exclude-windows`，同样即时重渲染。窗口卡片内部的标签页过滤与“排除特权页面”共用同一个 `webOnly` 开关。
+- “显示最近关闭详细列表”（`#opt-session-list`）：默认**不勾选**，勾上才把详细列表这张卡片放进塔里。存 `ntp-session-list`，改动后立刻重新取列表重渲染。它是独立的开关，不受“最近关闭卡片最大显示数”影响——那个只数普通卡片。行数据也是只在这个开关打开时才从 `sessions` 列表构建（关着的时候连 DOM 都不填）。
 - “调试：只用单字母图标”（`#opt-letter-favicons`）：给 `body` 加 `ntp-letter-favicons`，CSS 把 `.ntp-tile-icon img` 藏起来、强制露出 `.ntp-tile-letter`，用来在图标都能加载的页面上直接看首字母兜底的效果。**故意不存**，刷新即回到真实图标——它只是开发期的一副眼镜，不是设置项。
 
 ## 构建与加载
@@ -299,6 +300,7 @@ npm run build
 - [ ] 快照按深度褪色：3 张时 60% / 35% / 10%，只显示 1 张时是 60%
 - [ ] 没有快照的卡片在快照区居中显示 favicon（Firefox 显示首字母），不是一片空白，也没有被拉满整张卡片
 - [ ] 快照只在内存里（重启浏览器后为空），超 1080p 的已压到 1080p
+- [ ] 设置里“显示最近关闭详细列表”默认不勾选，勾上后详细列表这张卡片出现在塔底、取消勾选后消失且不占名额，刷新后记住选择；
 - [ ] 详细列表就是塔里最靠后的一张卡（同一套框体/圆角/阴影/阶梯缩放），默认只露出 1 倍标题栏高的一条表头，其余被前面的卡片盖住；行数、类型（窗口/标签页）、关闭时间都对得上 `sessions.getRecentlyClosed()`
 - [ ] 列表不受设置影响：把“最近关闭卡片最大显示数”改成 1、勾上“排除窗口”，列表里照样是完整内容，且卡片只有 1 张 + 这张列表
 - [ ] 勾选若干行后“恢复”按钮才可用，点它能把选中的会话恢复回来并刷新；未勾选时是灰的但仍在原位

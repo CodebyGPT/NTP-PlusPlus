@@ -34,6 +34,7 @@ const EXCLUDE_PRIVILEGED_KEY = 'ntp-exclude-privileged';
 // Closed windows restore as a whole and list their tabs, which some people find
 // noisy next to single pages, so this is off by default.
 const EXCLUDE_WINDOWS_KEY = 'ntp-exclude-windows';
+const SESSION_LIST_KEY = 'ntp-session-list';
 const TILE_STYLE_KEY = 'ntp-tile-style';
 const SNAPSHOT_CAP_KEY = 'ntp-snapshot-cap';
 const SNAPSHOT_CAP_OPTIONS = [720, 1080, 1440, 2160];
@@ -103,6 +104,7 @@ const snapshotCapInput = document.getElementById('opt-snapshot-cap');
 const recentCountInput = document.getElementById('opt-recent-count');
 const excludePrivilegedInput = document.getElementById('opt-exclude-privileged');
 const excludeWindowsInput = document.getElementById('opt-exclude-windows');
+const sessionListInput = document.getElementById('opt-session-list');
 const letterFaviconsInput = document.getElementById('opt-letter-favicons');
 const recentElement = document.getElementById('ntp-recent');
 const sessionListElement = document.getElementById('ntp-session-list');
@@ -117,6 +119,7 @@ const settings = {
   // Default on: this is how the cards behaved before privileged pages showed up.
   excludePrivileged: readStoredFlag(EXCLUDE_PRIVILEGED_KEY, true),
   excludeWindows: readStoredFlag(EXCLUDE_WINDOWS_KEY),
+  showSessionList: readStoredFlag(SESSION_LIST_KEY),
 };
 let topSites = [];
 let excludedHosts = new Set();
@@ -567,6 +570,16 @@ function setupSettings() {
     });
   }
 
+  if (sessionListInput) {
+    sessionListInput.checked = settings.showSessionList;
+    sessionListInput.addEventListener('change', () => {
+      settings.showSessionList = sessionListInput.checked;
+      saveStoredFlag(SESSION_LIST_KEY, settings.showSessionList);
+      logEvent('settings:session-list', { value: settings.showSessionList });
+      refreshRecentCards();
+    });
+  }
+
   // Debug only: swaps every tile icon for its letter so the fallback can be
   // eyeballed. Deliberately not stored - a reload starts from real icons.
   if (letterFaviconsInput) {
@@ -881,7 +894,11 @@ function renderRecentCards() {
   const cards = [...recentCards]
     .reverse()
     .map((card, index) => createCardElement(card, total - 1 - index));
-  const children = hasList ? [sessionListElement, ...cards] : cards;
+  // The list node stays put even when it is hidden: dropping it would take it
+  // out of the document and nothing could switch it back on.
+  const children = sessionListElement
+    ? [sessionListElement, ...cards]
+    : cards;
   recentElement.replaceChildren(...children);
   applyCardText();
 }
@@ -1184,7 +1201,11 @@ function renderSessionList(sessions) {
     return;
   }
 
-  sessionRows = buildSessionRows(sessions);
+  // Off by default: the list is a card of its own, so it gets its own switch
+  // rather than riding on the recent-card limit.
+  sessionRows = settings.showSessionList
+    ? buildSessionRows(sessions, { webOnly: settings.excludePrivileged })
+    : [];
   sessionListElement.hidden = sessionRows.length === 0;
   const known = new Set(sessionRows.map((row) => row.sessionId));
   for (const sessionId of [...selectedSessions]) {
