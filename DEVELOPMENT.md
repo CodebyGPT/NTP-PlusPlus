@@ -55,6 +55,7 @@
 - 运行时统一取 `globalThis.browser ?? globalThis.chrome`，两条路径都按 Promise 调用；不检测回调风格。
 - 通过特性检测判断可选 API 是否存在，例如 Chromium 没有 `theme` API，就直接使用 CSS 深浅色回退。
 - 不引入 polyfill 库、构建框架或状态管理；两种 manifest 由构建脚本生成即可。
+- 浏览器差异只在底层收一次口，不要在调用处分支：站点图标（favicon / 首字母徽章）一律走 `src/icons.js` 的 `createSiteIcon()`，见“图标”一节；调用方不做 `if (Firefox)` 之类判断。
 
 ### 7. 代码与验证
 
@@ -175,8 +176,20 @@ test/
 所有图标只走一条路：`src/icons.js`。调用方只管说“这个站点是什么”，不判断要不要降级：
 
 ```js
-createSiteIcon({ url, title, favicon, variant: 'tile' })
+import { createSiteIcon } from './icons.js';
+
+// 放进任何容器即可：有 favicon 就是 <img>，没有就是首字母徽章。
+element.append(createSiteIcon({ url, title, favicon, variant: 'tile' }));
 ```
+
+新增一处放图标的地方，四步就够：
+
+1. 在 `newtab.html`/`newtab.js` 里给容器一个类名，比如 `.ntp-thing-icon`；
+2. 在 CSS 里把它设为 `display: grid; place-items: center`，并声明 `--site-icon-size`（和图片尺寸 `--site-icon-image-size`）；
+3. 调 `createSiteIcon({ url, title, variant: 'card' })`——需要新外观才在 `icons.js` 的 `VARIANTS` 里加一项；
+4. 若要用别的字号，只覆盖 `--site-icon-glyph-scale` / `--site-icon-letter-nudge`，不要复制徽章规则。
+
+`favicon` 参数只在调用方本来就有内联图标时传（例如 `topSites` 的 `favicon`）；不知道就不传。
 
 返回一个 `span.site-icon`：里面要么是加载成功的 `img.site-icon-image`，要么是同样大小的首字母徽章。降级策略全在 `iconSource()` 里——内联 `favicon`（`topSites` 给的 data URL）优先；Firefox 直接 `undefined`，因为 `sessions`/`tabs` 只给远程 `favIconUrl`，加载它等于联网；非 http(s) 的 URL 也 `undefined`，因为 Chromium 的 `/_favicon/` 对特权页面只会吐出同一张通用地球图标。其余情况才拼 `/_favicon/?pageUrl=…&size=64`。
 
