@@ -8,11 +8,14 @@ const OPEN_SNAPSHOT_KEY = 'ntp-open-snapshots';
 const CLOSED_SNAPSHOT_KEY = 'ntp-closed-snapshots';
 const SNAPSHOT_MESSAGE = 'ntp:snapshots';
 
-// JPEG quality for both capture and re-encode; thumbnails are small and
-// session storage is memory-only, so mild artifacts are an acceptable trade.
-const SNAPSHOT_QUALITY = 60;
-const SNAPSHOT_MAX_WIDTH = 1280;
-const SNAPSHOT_MAX_HEIGHT = 720;
+// Capture wants detail (it is the only chance to see the page), while the
+// re-encode only has to survive one downscale, so it can be cheaper. Both land
+// in memory-only session storage: 11 snapshots at 1080p stay well under the
+// 10 MB quota.
+const SNAPSHOT_CAPTURE_QUALITY = 80;
+const SNAPSHOT_QUALITY = 70;
+const SNAPSHOT_MAX_WIDTH = 1920;
+const SNAPSHOT_MAX_HEIGHT = 1080;
 
 // One open entry per live tab. A tab the user has not revisited still needs its
 // entry to become a closed snapshot, so the cap covers a window's worth of
@@ -98,7 +101,7 @@ async function blobToDataUrl(blob) {
 }
 
 // Capture already costs a browser call, so re-encode only when the frame is
-// larger than 720p; the canvas path is best-effort and falls back silently.
+// larger than 1080p; the canvas path is best-effort and falls back silently.
 async function downscale(dataUrl) {
   try {
     const bitmap = await createImageBitmap(dataUrlToBlob(dataUrl));
@@ -150,7 +153,7 @@ async function captureTab(tabId) {
 
     const dataUrl = await api.tabs.captureVisibleTab(tab.windowId, {
       format: 'jpeg',
-      quality: SNAPSHOT_QUALITY,
+      quality: SNAPSHOT_CAPTURE_QUALITY,
     });
     const open = await read(OPEN_SNAPSHOT_KEY, []);
     const entry = { tabId, url: tab.url, dataUrl: await downscale(dataUrl) };
